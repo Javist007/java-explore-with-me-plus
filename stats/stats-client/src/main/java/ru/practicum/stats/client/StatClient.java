@@ -6,6 +6,9 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.util.UriComponentsBuilder;
+import ru.practicum.stats.dto.EndpointHitDto;
+import ru.practicum.stats.dto.StatsDateTimeFormat;
+import ru.practicum.stats.dto.ViewStatsDto;
 
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -28,7 +31,7 @@ public class StatClient {
     }
 
     public List<ViewStatsDto> getStats(LocalDateTime start, LocalDateTime end, List<String> uris, Boolean unique) {
-        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("${ewm-stat-service.url}");
+        DateTimeFormatter formatter = StatsDateTimeFormat.FORMATTER;
         UriComponentsBuilder builder = UriComponentsBuilder.fromHttpUrl(srverUrl + "/stats")
                 .queryParam("start", start.format(formatter))
                 .queryParam("end", end.format(formatter));
