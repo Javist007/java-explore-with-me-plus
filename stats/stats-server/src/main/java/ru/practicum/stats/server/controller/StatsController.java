@@ -1,5 +1,6 @@
 package ru.practicum.stats.server.controller;
 
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -10,7 +11,6 @@ import ru.practicum.stats.dto.StatsDateTimeFormat;
 import ru.practicum.stats.dto.ViewStatsDto;
 import ru.practicum.stats.server.service.StatsService;
 
-import jakarta.validation.Valid;
 import java.time.LocalDateTime;
 import java.util.List;
 
