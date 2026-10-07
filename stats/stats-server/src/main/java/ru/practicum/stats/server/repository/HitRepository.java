@@ -11,6 +11,13 @@ import java.util.List;
 
 public interface HitRepository extends JpaRepository<Hit, Long> {
 
+    /**
+     * Возвращает статистику всех посещений с фильтром по URI.
+     * @param start начало периода
+     * @param end конец периода
+     * @param uris список URI для фильтрации
+     * @return список проекций статистики
+     */
     // 1. Все посещения + фильтр по URI
     @Query("SELECT h.app AS app, h.uri AS uri, COUNT(h.ip) AS hits " +
             "FROM Hit h " +
@@ -22,6 +29,12 @@ public interface HitRepository extends JpaRepository<Hit, Long> {
                                                @Param("end") LocalDateTime end,
                                                @Param("uris") List<String> uris);
 
+    /**
+     * Возвращает статистику всех посещений без фильтра по URI.
+     * @param start начало периода
+     * @param end конец периода
+     * @return список проекций статистики
+     */
     // 2. Все посещения без фильтра по URI
     @Query("SELECT h.app AS app, h.uri AS uri, COUNT(h.ip) AS hits " +
             "FROM Hit h " +
@@ -31,6 +44,13 @@ public interface HitRepository extends JpaRepository<Hit, Long> {
     List<ViewStatsProjection> getStatsWithoutUris(@Param("start") LocalDateTime start,
                                                   @Param("end") LocalDateTime end);
 
+    /**
+     * Возвращает статистику уникальных посещений с фильтром по URI.
+     * @param start начало периода
+     * @param end конец периода
+     * @param uris список URI для фильтрации
+     * @return список проекций статистики
+     */
     // 3. Уникальные IP + фильтр по URI
     @Query("SELECT h.app AS app, h.uri AS uri, COUNT(DISTINCT h.ip) AS hits " +
             "FROM Hit h " +
@@ -42,6 +62,12 @@ public interface HitRepository extends JpaRepository<Hit, Long> {
                                                      @Param("end") LocalDateTime end,
                                                      @Param("uris") List<String> uris);
 
+    /**
+     * Возвращает статистику уникальных посещений без фильтра по URI.
+     * @param start начало периода
+     * @param end конец периода
+     * @return список проекций статистики
+     */
     // 4. Уникальные IP без фильтра по URI
     @Query("SELECT h.app AS app, h.uri AS uri, COUNT(DISTINCT h.ip) AS hits " +
             "FROM Hit h " +

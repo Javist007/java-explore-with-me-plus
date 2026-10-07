@@ -3,9 +3,7 @@ package ru.practicum.stats.server.controller;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.web.server.ResponseStatusException;
 import ru.practicum.stats.dto.EndpointHitDto;
 import ru.practicum.stats.dto.ViewStatsDto;
 import ru.practicum.stats.server.dto.StatsRequestDto;
@@ -19,21 +17,25 @@ public class StatsController {
 
     private final StatsService statsService;
 
+    /**
+     * Сохраняет информацию о посещении endpoint.
+     *
+     * @param dto DTO с данными о посещении
+     */
     @PostMapping("/hit")
-    public ResponseEntity<Void> saveHit(@RequestBody @Valid EndpointHitDto dto) {
+    @ResponseStatus(HttpStatus.CREATED)
+    public void saveHit(@RequestBody @Valid EndpointHitDto dto) {
         statsService.saveHit(dto);
-        return ResponseEntity.status(HttpStatus.CREATED).build();
     }
 
+    /**
+     * Возвращает статистику посещений.
+     *
+     * @param request параметры запроса статистики
+     * @return список статистики
+     */
     @GetMapping("/stats")
-    public ResponseEntity<List<ViewStatsDto>> getStats(@Valid @ModelAttribute StatsRequestDto request) {
-        // Простая и понятная проверка без кастомных аннотаций
-        if (request.getStart().isAfter(request.getEnd())) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
-                    "Дата начала не может быть позже даты конца");
-        }
-
-        List<ViewStatsDto> stats = statsService.getStats(request);
-        return ResponseEntity.ok(stats);
+    public List<ViewStatsDto> getStats(@Valid @ModelAttribute StatsRequestDto request) {
+        return statsService.getStats(request);
     }
 }

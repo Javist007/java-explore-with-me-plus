@@ -23,6 +23,14 @@ public class ErrorHandler {
     private static final String BAD_REQUEST_ERROR = "Неверный запрос";
     private static final String INTERNAL_SERVER_ERROR = "Внутренняя ошибка сервера";
 
+    /**
+     * Формирует ответ об ошибке.
+     * @param error тип ошибки
+     * @param message сообщение об ошибке
+     * @param status HTTP статус
+     * @param request HTTP запрос
+     * @return ErrorResponse с деталями ошибки
+     */
     private ErrorResponse buildResponse(String error, String message, HttpStatus status, HttpServletRequest request) {
         return new ErrorResponse(
                 error,
@@ -33,6 +41,12 @@ public class ErrorHandler {
         );
     }
 
+    /**
+     * Обрабатывает ошибки валидации аргументов метода.
+     * @param e исключение валидации
+     * @param request HTTP запрос
+     * @return ErrorResponse с деталями ошибки
+     */
     @ExceptionHandler(MethodArgumentNotValidException.class)
     @ResponseStatus(HttpStatus.BAD_REQUEST)
     public ErrorResponse handleMethodArgumentNotValid(final MethodArgumentNotValidException e, HttpServletRequest request) {
@@ -44,6 +58,12 @@ public class ErrorHandler {
         return buildResponse(VALIDATION_ERROR, errorMessage, HttpStatus.BAD_REQUEST, request);
     }
 
+    /**
+     * Обрабатывает нарушения ограничений (constraint violations).
+     * @param e исключение нарушения ограничений
+     * @param request HTTP запрос
+     * @return ErrorResponse с деталями ошибки
+     */
     @ExceptionHandler(ConstraintViolationException.class)
     @ResponseStatus(HttpStatus.BAD_REQUEST)
     public ErrorResponse handleConstraintViolation(final ConstraintViolationException e, HttpServletRequest request) {
@@ -57,6 +77,12 @@ public class ErrorHandler {
         return buildResponse(VALIDATION_ERROR, errorMessage, HttpStatus.BAD_REQUEST, request);
     }
 
+    /**
+     * Обрабатывает исключения неверных аргументов.
+     * @param e исключение неверного аргумента
+     * @param request HTTP запрос
+     * @return ErrorResponse с деталями ошибки
+     */
     @ExceptionHandler(IllegalArgumentException.class)
     @ResponseStatus(HttpStatus.BAD_REQUEST)
     public ErrorResponse handleIllegalArgument(final IllegalArgumentException e, HttpServletRequest request) {
@@ -64,6 +90,12 @@ public class ErrorHandler {
         return buildResponse(BAD_REQUEST_ERROR, e.getMessage(), HttpStatus.BAD_REQUEST, request);
     }
 
+    /**
+     * Обрабатывает отсутствие обязательных параметров запроса.
+     * @param e исключение отсутствующего параметра
+     * @param request HTTP запрос
+     * @return ErrorResponse с деталями ошибки
+     */
     @ExceptionHandler(MissingServletRequestParameterException.class)
     @ResponseStatus(HttpStatus.BAD_REQUEST)
     public ErrorResponse handleMissingParams(final MissingServletRequestParameterException e, HttpServletRequest request) {
@@ -71,6 +103,12 @@ public class ErrorHandler {
         return buildResponse("Пропущен обязательный параметр", e.getMessage(), HttpStatus.BAD_REQUEST, request);
     }
 
+    /**
+     * Обрабатывает несоответствие типов аргументов метода.
+     * @param e исключение несоответствия типов
+     * @param request HTTP запрос
+     * @return ErrorResponse с деталями ошибки
+     */
     @ExceptionHandler(MethodArgumentTypeMismatchException.class)
     @ResponseStatus(HttpStatus.BAD_REQUEST)
     public ErrorResponse handleMismatch(final MethodArgumentTypeMismatchException e, HttpServletRequest request) {
@@ -78,6 +116,12 @@ public class ErrorHandler {
         return buildResponse("Неверный формат параметра", e.getMessage(), HttpStatus.BAD_REQUEST, request);
     }
 
+    /**
+     * Обрабатывает ошибки чтения HTTP сообщения (неверный формат JSON).
+     * @param e исключение чтения сообщения
+     * @param request HTTP запрос
+     * @return ErrorResponse с деталями ошибки
+     */
     @ExceptionHandler(HttpMessageNotReadableException.class)
     @ResponseStatus(HttpStatus.BAD_REQUEST)
     public ErrorResponse handleHttpMessageNotReadable(HttpMessageNotReadableException e, HttpServletRequest request) {
@@ -85,6 +129,12 @@ public class ErrorHandler {
         return buildResponse("Неверный формат запроса", e.getMessage(), HttpStatus.BAD_REQUEST, request);
     }
 
+    /**
+     * Обрабатывает все остальные непредвиденные исключения.
+     * @param e исключение
+     * @param request HTTP запрос
+     * @return ErrorResponse с деталями ошибки
+     */
     @ExceptionHandler(Exception.class)
     @ResponseStatus(HttpStatus.INTERNAL_SERVER_ERROR)
     public ErrorResponse handleAllExceptions(final Exception e, HttpServletRequest request) {
