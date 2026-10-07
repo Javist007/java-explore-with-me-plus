@@ -1,24 +1,21 @@
 package ru.practicum.stats.client;
 
-import jakarta.validation.constraints.NotNull;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.stereotype.Component;
-import org.springframework.validation.annotation.Validated;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.util.UriComponentsBuilder;
 import ru.practicum.stats.client.exception.StatServiceClientException;
 import ru.practicum.stats.dto.EndpointHitDto;
-import ru.practicum.stats.dto.ViewStatsDto;
 import ru.practicum.stats.dto.StatsDateTimeFormat;
+import ru.practicum.stats.dto.ViewStatsDto;
 
 import java.time.LocalDateTime;
 import java.util.List;
 
 @Slf4j
 @Component
-@Validated
 @RequiredArgsConstructor
 public class StatClientImpl implements StatClient {
 
@@ -40,7 +37,7 @@ public class StatClientImpl implements StatClient {
     }
 
     @Override
-    public List<ViewStatsDto> getStats(@NotNull LocalDateTime start, @NotNull LocalDateTime end, List<String> uris, Boolean unique) {
+    public List<ViewStatsDto> getStats(LocalDateTime start, LocalDateTime end, List<String> uris, Boolean unique) {
         try {
             String startStr = start.format(StatsDateTimeFormat.FORMATTER);
             String endStr = end.format(StatsDateTimeFormat.FORMATTER);
@@ -57,7 +54,8 @@ public class StatClientImpl implements StatClient {
             List<ViewStatsDto> result = restClient.get()
                     .uri(builder.build().toUriString())
                     .retrieve()
-                    .body(new ParameterizedTypeReference<List<ViewStatsDto>>() {});
+                    .body(new ParameterizedTypeReference<List<ViewStatsDto>>() {
+                    });
 
             return result != null ? result : List.of();
 
