@@ -1,9 +1,11 @@
 package ru.practicum.stats.client;
 
+import jakarta.validation.constraints.NotNull;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.stereotype.Component;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.util.UriComponentsBuilder;
 import ru.practicum.stats.client.exception.StatServiceClientException;
@@ -16,29 +18,29 @@ import java.util.List;
 
 @Slf4j
 @Component
+@Validated
 @RequiredArgsConstructor
 public class StatClientImpl implements StatClient {
 
     private final RestClient restClient;
 
     @Override
-    public boolean saveHit(EndpointHitDto hit) {
+    public void saveHit(EndpointHitDto hit) {
         try {
             restClient.post()
                     .uri("/hit")
                     .body(hit)
                     .retrieve()
                     .toBodilessEntity();
-            return true;
         } catch (Exception e) {
             log.error("Ошибка при сохранении данных о просмотре: app={}, uri={}, error={}",
                     hit.getApp(), hit.getUri(), e.getMessage());
-            return false;
+            throw new StatServiceClientException("Failed to save hit to stats service", e);
         }
     }
 
     @Override
-    public List<ViewStatsDto> getStats(LocalDateTime start, LocalDateTime end, List<String> uris, Boolean unique) {
+    public List<ViewStatsDto> getStats(@NotNull LocalDateTime start, @NotNull LocalDateTime end, List<String> uris, Boolean unique) {
         try {
             String startStr = start.format(StatsDateTimeFormat.FORMATTER);
             String endStr = end.format(StatsDateTimeFormat.FORMATTER);
