@@ -1,0 +1,10 @@
+package ru.practicum.ewm.exception;
+
+/**
+ * Нарушены условия выполнения операции (409 CONFLICT).
+ */
+public class ConflictException extends RuntimeException {
+    public ConflictException(String message) {
+        super(message);
+    }
+}
