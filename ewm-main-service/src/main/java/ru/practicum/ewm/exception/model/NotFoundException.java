@@ -1,4 +1,4 @@
-package ru.practicum.ewm.exception;
+package ru.practicum.ewm.exception.model;
 
 /**
  * Объект не найден (404 NOT_FOUND).

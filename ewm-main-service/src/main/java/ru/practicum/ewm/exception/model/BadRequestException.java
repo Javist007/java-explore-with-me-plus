@@ -1,4 +1,4 @@
-package ru.practicum.ewm.exception;
+package ru.practicum.ewm.exception.model;
 
 /**
  * Запрос составлен некорректно (400 BAD_REQUEST).

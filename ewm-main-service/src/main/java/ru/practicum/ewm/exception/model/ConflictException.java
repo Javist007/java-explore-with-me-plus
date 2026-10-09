@@ -1,4 +1,4 @@
-package ru.practicum.ewm.exception;
+package ru.practicum.ewm.exception.model;
 
 /**
  * Нарушены условия выполнения операции (409 CONFLICT).

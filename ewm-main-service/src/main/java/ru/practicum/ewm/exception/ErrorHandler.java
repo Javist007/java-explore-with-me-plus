@@ -13,6 +13,9 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import ru.practicum.ewm.exception.model.BadRequestException;
+import ru.practicum.ewm.exception.model.ConflictException;
+import ru.practicum.ewm.exception.model.NotFoundException;
 
 import java.time.LocalDateTime;
 import java.util.stream.Collectors;
