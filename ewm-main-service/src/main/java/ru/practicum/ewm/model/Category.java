@@ -4,23 +4,20 @@ import jakarta.persistence.*;
 import lombok.*;
 
 /**
- * Сущность пользователя в базе данных.
+ * Сущность категории событий в базе данных.
  */
 @Entity
-@Table(name = "users")
+@Table(name = "categories")
 @Getter
 @Setter
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class User {
+public class Category {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(nullable = false)
-    private String name;
-
     @Column(nullable = false, unique = true)
-    private String email;
+    private String name;
 }
