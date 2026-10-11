@@ -5,6 +5,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import ru.practicum.ewm.dto.event.request.NewEventRequest;
 import ru.practicum.ewm.dto.event.response.EventFullDto;
+import ru.practicum.ewm.dto.event.response.EventShortDto;
 import ru.practicum.ewm.exception.model.NotFoundException;
 import ru.practicum.ewm.model.Category;
 import ru.practicum.ewm.model.Event;
@@ -47,12 +48,23 @@ public class EventServicelmpl implements EventService {
     }
 
     @Override
-    public List<EventFullDto> getEvents(Long userId) {
+    public List<EventShortDto> getEvents(Long userId) {
         userRepository.findById(userId)
                 .orElseThrow(() -> new NotFoundException("User не найден"));
 
         return eventRepository.findByInitiatorId(userId).stream()
-                .map(EventMapper::toDto)
+                .map(EventMapper::toShortDto)
                 .toList();
+    }
+
+    @Override
+    public EventFullDto getEventsUser(Long userId, Long eventId) {
+        userRepository.findById(userId)
+                .orElseThrow(() -> new NotFoundException("User не найден"));
+
+        eventRepository.findById(eventId).orElseThrow(()-> new NotFoundException("Event не найден"));
+
+        Event event = eventRepository.findByInitiatorIdAndId(userId,eventId);
+        return EventMapper.toDto(event);
     }
 }

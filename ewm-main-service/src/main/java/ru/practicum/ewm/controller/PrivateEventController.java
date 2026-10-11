@@ -8,6 +8,7 @@ import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 import ru.practicum.ewm.dto.event.request.NewEventRequest;
 import ru.practicum.ewm.dto.event.response.EventFullDto;
+import ru.practicum.ewm.dto.event.response.EventShortDto;
 import ru.practicum.ewm.service.EventService;
 
 import java.util.List;
@@ -30,7 +31,14 @@ public class PrivateEventController {
     @GetMapping
     @ResponseStatus(HttpStatus.OK)
     @Transactional(readOnly = true)
-    public List<EventFullDto> getEvents(@PathVariable Long userId) {
+    public List<EventShortDto> getEvents(@PathVariable Long userId) {
         return eventService.getEvents(userId);
+    }
+
+    @GetMapping("/{eventId}")
+    @ResponseStatus(HttpStatus.OK)
+    @Transactional(readOnly = true)
+    public EventFullDto getEvent(@PathVariable Long userId, @PathVariable Long eventId) {
+        return eventService.getEventsUser(userId, eventId);
     }
 }

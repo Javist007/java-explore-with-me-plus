@@ -3,6 +3,7 @@ package ru.practicum.ewm.service.mapper;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
 import ru.practicum.ewm.dto.event.response.EventFullDto;
+import ru.practicum.ewm.dto.event.response.EventShortDto;
 import ru.practicum.ewm.dto.event.request.NewEventRequest;
 import ru.practicum.ewm.model.Category;
 import ru.practicum.ewm.model.Event;
@@ -47,7 +48,6 @@ public final class EventMapper {
      */
     public static EventFullDto toDto(Event event) {
         return EventFullDto.builder()
-                .id(event.getId())
                 .annotation(event.getAnnotation())
                 .category(EventFullDto.CategoryDto.builder()
                         .id(event.getCategory().getId())
@@ -67,6 +67,28 @@ public final class EventMapper {
                 .publishedOn(event.getPublishedOn() != null ? event.getPublishedOn().format(FORMATTER) : null)
                 .requestModeration(event.getRequestModeration())
                 .state(event.getState().name())
+                .title(event.getTitle())
+                .views(event.getViews())
+                .build();
+    }
+
+    /**
+     * Преобразует сущность в краткое DTO.
+     */
+    public static EventShortDto toShortDto(Event event) {
+        return EventShortDto.builder()
+                .annotation(event.getAnnotation())
+                .category(EventShortDto.CategoryDto.builder()
+                        .id(event.getCategory().getId())
+                        .name(event.getCategory().getName())
+                        .build())
+                .confirmedRequests(event.getConfirmedRequests())
+                .eventDate(event.getEventDate().format(FORMATTER))
+                .initiator(EventShortDto.UserShortDto.builder()
+                        .id(event.getInitiator().getId())
+                        .name(event.getInitiator().getName())
+                        .build())
+                .paid(event.getPaid())
                 .title(event.getTitle())
                 .views(event.getViews())
                 .build();
