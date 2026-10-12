@@ -12,6 +12,9 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 public class EventShortDto {
 
+    @JsonProperty("id")
+    private Long id;
+
     @JsonProperty("annotation")
     private String annotation;
 

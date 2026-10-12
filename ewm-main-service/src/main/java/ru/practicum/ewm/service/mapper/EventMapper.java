@@ -48,6 +48,7 @@ public final class EventMapper {
      */
     public static EventFullDto toDto(Event event) {
         return EventFullDto.builder()
+                .id(event.getId())
                 .annotation(event.getAnnotation())
                 .category(EventFullDto.CategoryDto.builder()
                         .id(event.getCategory().getId())
@@ -77,6 +78,7 @@ public final class EventMapper {
      */
     public static EventShortDto toShortDto(Event event) {
         return EventShortDto.builder()
+                .id(event.getId())
                 .annotation(event.getAnnotation())
                 .category(EventShortDto.CategoryDto.builder()
                         .id(event.getCategory().getId())

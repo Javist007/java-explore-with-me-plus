@@ -49,4 +49,5 @@ public class NewEventRequest {
     @Size(min = 3, max = 120)
     @JsonProperty("title")
     private String title;
+
 }

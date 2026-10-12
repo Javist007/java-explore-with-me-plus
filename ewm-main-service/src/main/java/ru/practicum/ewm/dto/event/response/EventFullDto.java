@@ -13,6 +13,8 @@ import ru.practicum.ewm.dto.event.Location;
 @AllArgsConstructor
 public class EventFullDto {
 
+    @JsonProperty("id")
+    private Long id;
 
     @JsonProperty("annotation")
     private String annotation;
