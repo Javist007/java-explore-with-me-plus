@@ -5,11 +5,12 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
-import ru.practicum.ewm.dto.event.request.*;
+import ru.practicum.ewm.dto.event.request.EventSearchRequest;
+import ru.practicum.ewm.dto.event.request.NewEventRequest;
+import ru.practicum.ewm.dto.event.request.UpdateEventContext;
+import ru.practicum.ewm.dto.event.request.UpdateEventRequest;
 import ru.practicum.ewm.dto.event.response.EventFullDto;
-import ru.practicum.ewm.dto.event.response.EventRequestStatusUpdateResult;
 import ru.practicum.ewm.dto.event.response.EventShortDto;
-import ru.practicum.ewm.dto.participation.response.ParticipationRequestDto;
 import ru.practicum.ewm.service.EventService;
 
 import java.util.List;
@@ -45,18 +46,6 @@ public class PrivateEventController {
     @ResponseStatus(HttpStatus.OK)
     public EventFullDto updateEvent(@PathVariable Long userId, @PathVariable Long eventId, @RequestBody @Valid UpdateEventRequest request) {
         return eventService.updateEvent(UpdateEventContext.builder().request(request).userId(userId).eventId(eventId).build());
-    }
-
-    @GetMapping("/{eventId}/requests")
-    @ResponseStatus(HttpStatus.OK)
-    public List<ParticipationRequestDto> getEventRequests(@PathVariable Long userId, @PathVariable Long eventId) {
-        return eventService.getEventRequest(userId, eventId);
-    }
-
-    @PatchMapping("/{eventId}/requests")
-    @ResponseStatus(HttpStatus.OK)
-    public EventRequestStatusUpdateResult updateEventRequests(@RequestBody @Valid EventRequestStatusUpdateRequest request, @PathVariable Long userId, @PathVariable Long eventId) {
-        return eventService.updateEventRequests(EventRequestStatusUpdateContext.builder().request(request).userId(userId).eventId(eventId).build());
     }
 
 }

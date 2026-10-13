@@ -9,9 +9,11 @@ import ru.practicum.ewm.dto.category.request.CategorySearchRequest;
 import ru.practicum.ewm.dto.category.request.CategoryUpdateRequest;
 import ru.practicum.ewm.dto.category.request.NewCategoryDto;
 import ru.practicum.ewm.dto.category.response.CategoryDto;
+import ru.practicum.ewm.exception.model.ConflictException;
 import ru.practicum.ewm.exception.model.NotFoundException;
 import ru.practicum.ewm.model.Category;
 import ru.practicum.ewm.repository.CategoryRepository;
+import ru.practicum.ewm.repository.EventRepository;
 import ru.practicum.ewm.service.CategoryService;
 import ru.practicum.ewm.service.mapper.CategoryMapper;
 
@@ -28,6 +30,7 @@ public class CategoryServiceImpl implements CategoryService {
     private static final String CATEGORY_NOT_FOUND_EXCEPTION = "Категория не найдена id=";
 
     private final CategoryRepository categoryRepository;
+    private final EventRepository eventRepository;
 
     @Override
     @Transactional
@@ -51,6 +54,10 @@ public class CategoryServiceImpl implements CategoryService {
     @Transactional
     public void deleteCategory(Long catId) {
         Category category = getCategory(catId);
+
+        if (eventRepository.existsByCategoryId(catId)) {
+            throw new ConflictException("Категория не может быть удалена, так как в ней есть события");
+        }
 
         categoryRepository.delete(category);
     }

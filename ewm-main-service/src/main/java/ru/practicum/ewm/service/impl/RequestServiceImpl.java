@@ -92,7 +92,7 @@ public class RequestServiceImpl implements RequestService {
 
     @Override
     public List<ParticipationRequestDto> getEventRequests(Long userId, Long eventId) {
-        if (!eventRepository.findByInitiatorIdAndId(userId ,eventId).isPresent()) {
+        if (!eventRepository.existsByIdAndInitiatorId(eventId, userId)) {
             throw new NotFoundException("Событие с id=" + eventId + " не найдено");
         }
         return requestRepository.findAllByEventId(eventId).stream()
@@ -110,7 +110,7 @@ public class RequestServiceImpl implements RequestService {
             throw new BadRequestException("Новый статус заявок может быть только CONFIRMED или REJECTED");
         }
 
-        Event event = eventRepository.findByInitiatorIdAndId(eventId, params.getUserId())
+        Event event = eventRepository.findByIdAndInitiatorId(eventId, params.getUserId())
                 .orElseThrow(() -> new NotFoundException("Событие с id=" + eventId + " не найдено"));
 
         List<ParticipationRequest> requests = requestRepository
