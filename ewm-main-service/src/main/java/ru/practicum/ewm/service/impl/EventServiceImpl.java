@@ -71,10 +71,16 @@ public class EventServiceImpl implements EventService {
     @Override
     @Transactional(readOnly = true)
     public List<EventShortDto> getEvents(Long userId, EventSearchRequest request) {
+        if (request.getSize() == null || request.getSize() <= 0) {
+            throw new BadRequestException("Параметр size должен быть больше 0");
+        }
+        int from = request.getFrom() == null ? 0 : Math.max(0, request.getFrom());
+        int size = request.getSize();
+
         userRepository.findById(userId)
                 .orElseThrow(() -> new NotFoundException("User не найден"));
 
-        return eventRepository.findAllByInitiatorIdWithPagination(userId, request.getFrom(), request.getSize()).stream()
+        return eventRepository.findAllByInitiatorIdWithPagination(userId, from, size).stream()
                 .map(EventMapper::toShortDto)
                 .toList();
     }
@@ -203,6 +209,8 @@ public class EventServiceImpl implements EventService {
         }
 
         List<ParticipationRequest> toSave = new ArrayList<>();
+        List<ParticipationRequestDto> confirmed = new ArrayList<>();
+        List<ParticipationRequestDto> rejected = new ArrayList<>();
 
         for (ParticipationRequest request : requests) {
             if (request.getStatus() != RequestStatus.PENDING) {
@@ -211,7 +219,7 @@ public class EventServiceImpl implements EventService {
             request.setStatus(newStatus);
             toSave.add(request);
 
-            ParticipationRequestDto dto = ParticipationRequestMapper.toDto(request);
+            ParticipationRequestDto dto = RequestMapper.toDto(request);
             if (newStatus == RequestStatus.CONFIRMED) {
                 confirmed.add(dto);
             } else {
@@ -223,6 +231,9 @@ public class EventServiceImpl implements EventService {
 
         long newConfirmed = participationRepository.countByEventIdAndStatus(
                 context.getEventId(), RequestStatus.CONFIRMED);
+
+        event.setConfirmedRequests(newConfirmed);
+
         if (event.getParticipantLimit() > 0 && newConfirmed >= event.getParticipantLimit()) {
             event.setState(EventState.CLOSED);   // места больше нет — закрываем событие
         }
@@ -370,7 +381,7 @@ public class EventServiceImpl implements EventService {
 
         spec = spec.and(PublicEventSpecs.eventDateRange(rangeStart, rangeEnd));
 
-        // по спеке: если диапазон дат НЕ задан — выдаём только будущие события
+
         if (rangeStart == null && rangeEnd == null) {
             spec = spec.and(PublicEventSpecs.isFuture());
         }
@@ -384,7 +395,7 @@ public class EventServiceImpl implements EventService {
         }
         int page = Math.max(0, request.getFrom()) / request.getSize();
         PageRequest pageable = PageRequest.of(page, request.getSize(),
-                Sort.by(Sort.Direction.ASC, "eventDate")); // сортировку по views добавим после обогащения
+                Sort.by(Sort.Direction.ASC, "eventDate"));
 
         Page<Event> eventPage = eventRepository.findAll(spec, pageable);
         List<Event> events = eventPage.getContent();

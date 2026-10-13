@@ -20,7 +20,7 @@ public class AdminEventSpecs {
 
     public static Specification<Event> hasStates(AdminParamSearch search) {
         return (root, query, cb) -> {
-            if (search.getStates() == null || search.getStates().isEmpty()) return null;
+            if (search.getStates() == null || search.getStates().isEmpty()) return cb.conjunction();
             List<EventState> converted = search.getStates().stream()
                     .map(s -> {
                         try {
@@ -43,7 +43,7 @@ public class AdminEventSpecs {
                 return root.get("category").get("id").in(categories);
             }
 
-            return null;
+            return cb.conjunction();
         };
     }
 
