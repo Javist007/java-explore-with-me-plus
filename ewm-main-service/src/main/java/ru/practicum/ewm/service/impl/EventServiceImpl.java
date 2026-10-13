@@ -102,7 +102,7 @@ public class EventServiceImpl implements EventService {
         Event event = eventRepository.findByInitiatorIdAndId(context.getUserId(), context.getEventId())
                 .orElseThrow(() -> new NotFoundException("Event не найден"));
 
-        if (event.getState() == EventState.PUBLISHED || event.getState() == EventState.CANCELED) {
+        if (event.getState() == EventState.PUBLISHED) {
             throw new ConflictException("Редактирование опубликованного или отменённого события невозможно");
         }
 
