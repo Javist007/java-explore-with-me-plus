@@ -2,7 +2,7 @@ package ru.practicum.ewm.repository.spec;
 
 import jakarta.persistence.criteria.Expression;
 import org.springframework.data.jpa.domain.Specification;
-import ru.practicum.ewm.common.DateTimeConstants;
+
 import ru.practicum.ewm.model.Event;
 import ru.practicum.ewm.model.EventState;
 
@@ -37,11 +37,8 @@ public class PublicEventSpecs {
                 paid != null ? cb.equal(root.get("paid"), paid) : null;
     }
 
-    public static Specification<Event> eventDateRange(String startStr, String endStr) {
+    public static Specification<Event> eventDateRange(LocalDateTime start, LocalDateTime end) {
         return (root, query, cb) -> {
-            LocalDateTime start = startStr != null ? LocalDateTime.parse(startStr, DateTimeConstants.FORMATTER) : null;
-            LocalDateTime end = endStr != null ? LocalDateTime.parse(endStr, DateTimeConstants.FORMATTER) : null;
-
             if (start != null && end != null) {
                 return cb.between(root.get("eventDate"), start, end);
             } else if (start != null) {

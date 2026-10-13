@@ -59,7 +59,7 @@ public class EventServiceImpl implements EventService {
         Category category = categoryRepository.findById(request.getCategory())
                 .orElseThrow(() -> new NotFoundException("Category не найдена"));
 
-        LocalDateTime eventDate = LocalDateTime.parse(request.getEventDate(),DateTimeConstants.FORMATTER);
+        LocalDateTime eventDate = parseDateOrNull(request.getEventDate());
 
         if (eventDate.isBefore(LocalDateTime.now().plusHours(2))) {
             throw new ConflictException("Дата события должна быть не ранее чем через 2 часа от текущего момента");
@@ -92,8 +92,12 @@ public class EventServiceImpl implements EventService {
     public EventFullDto updateEvent(UpdateEventContext context) {
         userRepository.findById(context.getUserId())
                 .orElseThrow(() -> new NotFoundException("User не найден"));
-        Event event = eventRepository.findById(context.getEventId())
+        Event event = eventRepository.findByInitiatorIdAndId(context.getUserId(), context.getEventId())
                 .orElseThrow(() -> new NotFoundException("Event не найден"));
+
+        if (event.getState() == EventState.PUBLISHED || event.getState() == EventState.CANCELED) {
+            throw new ConflictException("Редактирование опубликованного или отменённого события невозможно");
+        }
 
         if (context.getRequest().hasAnnotation()) {
             event.setAnnotation(context.getRequest().getAnnotation());
@@ -110,9 +114,9 @@ public class EventServiceImpl implements EventService {
         }
 
         if (context.getRequest().hasEventDate()) {
-            LocalDateTime eventDate = LocalDateTime.parse(context.getRequest().getEventDate(), DateTimeConstants.FORMATTER);
+            LocalDateTime eventDate = parseDateOrNull(context.getRequest().getEventDate());
             if (eventDate.isBefore(LocalDateTime.now().plusHours(2))) {
-                throw new IllegalArgumentException("Дата события должна быть не ранее чем через 2 часа от текущего момента");
+                throw new ConflictException("Дата события должна быть не ранее чем через 2 часа от текущего момента");
             }
             event.setEventDate(eventDate);
         }
@@ -300,7 +304,7 @@ public class EventServiceImpl implements EventService {
         }
 
         if (request.hasEventDate()) {
-            LocalDateTime eventDate = LocalDateTime.parse(request.getEventDate(), DateTimeConstants.FORMATTER);
+            LocalDateTime eventDate = parseDateOrNull(request.getEventDate());
             LocalDateTime publishedOn = event.getPublishedOn() != null
                     ? event.getPublishedOn()
                     : event.getCreatedOn();
@@ -369,64 +373,54 @@ public class EventServiceImpl implements EventService {
         LocalDateTime rangeEnd = parseDateOrNull(request.getRangeEnd());
 
         spec = spec.and(PublicEventSpecs.eventDateRange(rangeStart, rangeEnd));
-        if (request.getSort() != PublicParamSearch.Sort.VIEWS
-                && rangeStart == null && rangeEnd == null) {
+
+        boolean byViews = request.getSort() == PublicParamSearch.Sort.VIEWS;
+
+        if (!byViews && rangeStart == null && rangeEnd == null) {
             spec = spec.and(PublicEventSpecs.isFuture());
-
-            if (Boolean.TRUE.equals(request.getOnlyAvailable())) {
-                spec = spec.and(PublicEventSpecs.isAvailable());
-            }
-
-            Sort sort = (request.getSort() == PublicParamSearch.Sort.VIEWS)
-                    ? Sort.by(Sort.Direction.DESC, "views")
-                    : Sort.by(Sort.Direction.ASC, "eventDate"); // EVENT_DATE — по возрастанию (ближайшие вперёд)      : Sort.by(Sort.Direction.DESC, "eventDate");
-
-            if (request.getSize() == null || request.getSize() <= 0) {
-                throw new BadRequestException("Параметр size должен быть больше 0");
-            }
-            int page = Math.max(0, request.getFrom()) / request.getSize();
-            PageRequest pageable = PageRequest.of(page, request.getSize());
-
-            Page<Event> eventPage = eventRepository.findAll(spec, pageable);
-            List<Event> events = eventPage.getContent();
-
-            if (events.isEmpty()) {
-                return Collections.emptyList();
-            }
-
-            List<String> uris = events.stream()
-                    .map(event -> "/events/" + event.getId())
-                    .collect(Collectors.toList());
-
-            LocalDateTime start = request.getRangeStart() != null
-                    ? LocalDateTime.parse(request.getRangeStart(), DateTimeConstants.FORMATTER)
-                    : LocalDateTime.of(2020,1,1,0,0);
-            LocalDateTime end = request.getRangeEnd() != null
-                    ? LocalDateTime.parse(request.getRangeEnd(), DateTimeConstants.FORMATTER)
-                    : LocalDateTime.now();
-
-            List<ViewStatsDto> stats = statClient.getStats(
-                    start,
-                    end,
-                    uris,
-                    false
-            );
-
-            Map<Long, Long> viewsMap = stats.stream()
-                    .collect(Collectors.toMap(
-                            viewStat -> Long.parseLong(viewStat.getUri().replace("/events/", "")),
-                            ViewStatsDto::getHits,
-                            Long::sum
-                    ));
-
-            return events.stream()
-                    .map(EventMapper::toShortDto)
-                    .map(dto -> {
-                        dto.setViews(viewsMap.getOrDefault(dto.getId(), 0L));
-                        return dto;
-                    })
-                    .toList();
         }
+        if (Boolean.TRUE.equals(request.getOnlyAvailable())) {
+            spec = spec.and(PublicEventSpecs.isAvailable());
+        }
+
+        if (request.getSize() == null || request.getSize() <= 0) {
+            throw new BadRequestException("Параметр size должен быть больше 0");
+        }
+        int page = Math.max(0, request.getFrom()) / request.getSize();
+        PageRequest pageable = PageRequest.of(page, request.getSize());
+
+        List<Event> events = eventRepository.findAll(spec, pageable).getContent();
+
+        if (events.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        List<String> uris = events.stream()
+                .map(event -> "/events/" + event.getId())
+                .collect(Collectors.toList());
+
+        List<ViewStatsDto> stats = statClient.getStats(
+                rangeStart != null ? rangeStart : LocalDateTime.of(2020, 1, 1, 0, 0),
+                rangeEnd != null ? rangeEnd : LocalDateTime.now(),
+                uris, false);
+
+        Map<Long, Long> viewsMap = stats.stream()
+                .collect(Collectors.toMap(
+                        viewStat -> Long.parseLong(viewStat.getUri().replace("/events/", "")),
+                        ViewStatsDto::getHits,
+                        Long::sum));
+
+        List<EventShortDto> dtos = events.stream()
+                .map(EventMapper::toShortDto)
+                .peek(dto -> dto.setViews(viewsMap.getOrDefault(dto.getId(), 0L)))
+                .collect(Collectors.toList());
+
+        if (byViews) {
+            dtos.sort(Comparator.comparingLong(EventShortDto::getViews).reversed());
+        } else {
+            dtos.sort(Comparator.comparing(EventShortDto::getEventDate));
+        }
+        return dtos;
     }
 
     @Override
@@ -465,7 +459,7 @@ public class EventServiceImpl implements EventService {
         try {
             return LocalDateTime.parse(value, DateTimeConstants.FORMATTER);
         } catch (java.time.format.DateTimeParseException e) {
-            throw new ru.practicum.ewm.exception.model.BadRequestException(
+            throw new BadRequestException(
                     "Неверный формат даты: \"" + value + "\", ожидается yyyy-MM-dd HH:mm:ss");
         }
     }

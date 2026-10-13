@@ -11,8 +11,11 @@ import java.util.List;
 
 public class AdminEventSpecs {
     public static Specification<Event> hasUser(AdminParamSearch search) {
-        return (root, query, cb) ->
-                search.getUsers() != null ? root.get("initiator").in(search.getUsers()) : null;
+        return (root, query, cb) ->{
+            return search.getUsers() != null && !search.getUsers().isEmpty()
+                    ? root.get("initiator").get("id").in(search.getUsers())
+                    : null;
+        };
     }
 
     public static Specification<Event> hasStates(AdminParamSearch search) {
