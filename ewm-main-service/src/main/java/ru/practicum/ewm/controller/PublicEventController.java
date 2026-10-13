@@ -23,14 +23,12 @@ public class PublicEventController {
 
     @GetMapping
     @ResponseStatus(HttpStatus.OK)
-    @Transactional(readOnly = true)
     public List<EventShortDto> getEvents(PublicParamSearch request) {
         return eventService.getPublicEvents(request);
     }
 
     @GetMapping("/{eventId}")
     @ResponseStatus(HttpStatus.OK)
-    @Transactional(readOnly = true)
     public EventFullDto getEvent(@PathVariable Long eventId, HttpServletRequest servletRequest) {
         return eventService.getPublicEventId(eventId,servletRequest);
     }

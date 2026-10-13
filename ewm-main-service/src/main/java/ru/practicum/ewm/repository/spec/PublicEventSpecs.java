@@ -49,7 +49,7 @@ public class PublicEventSpecs {
             } else if (end != null) {
                 return cb.lessThanOrEqualTo(root.get("eventDate"), end);
             } else {
-                return cb.greaterThanOrEqualTo(root.get("eventDate"), LocalDateTime.now());
+                return cb.conjunction();
             }
         };
     }
@@ -70,6 +70,11 @@ public class PublicEventSpecs {
 
             return null;
         };
+    }
+
+    public static Specification<Event> isFuture() {
+        return (root, query, cb) ->
+                cb.greaterThanOrEqualTo(root.get("eventDate"), LocalDateTime.now());
     }
 
 }

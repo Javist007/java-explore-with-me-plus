@@ -7,6 +7,7 @@ import org.springframework.data.repository.query.Param;
 import ru.practicum.ewm.model.Event;
 
 import java.util.List;
+import java.util.Optional;
 
 public interface EventRepository extends JpaRepository<Event, Long>, JpaSpecificationExecutor<Event> {
 
@@ -19,7 +20,7 @@ public interface EventRepository extends JpaRepository<Event, Long>, JpaSpecific
             @Param("from") int from,
             @Param("size") int size);
 
-    Event findByInitiatorIdAndId(Long initiatorId, Long eventId);
+    Optional<Event> findByInitiatorIdAndId(Long initiatorId, Long eventId);
 
 
 }

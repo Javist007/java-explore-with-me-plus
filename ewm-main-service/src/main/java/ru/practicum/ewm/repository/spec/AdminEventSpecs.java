@@ -4,6 +4,7 @@ import org.springframework.data.jpa.domain.Specification;
 import ru.practicum.ewm.common.DateTimeConstants;
 import ru.practicum.ewm.dto.event.request.AdminParamSearch;
 import ru.practicum.ewm.model.Event;
+import ru.practicum.ewm.model.EventState;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -15,8 +16,20 @@ public class AdminEventSpecs {
     }
 
     public static Specification<Event> hasStates(AdminParamSearch search) {
-        return (root, query, cb) ->
-                search.getStates() != null ? root.get("state").in(search.getStates()) : null;
+        return (root, query, cb) -> {
+            if (search.getStates() == null || search.getStates().isEmpty()) return null;
+            List<EventState> converted = search.getStates().stream()
+                    .map(s -> {
+                        try {
+                            return EventState.valueOf(s.toUpperCase());
+                        } catch (IllegalArgumentException e) {
+                            throw new ru.practicum.ewm.exception.model.BadRequestException(
+                                    "Недопустимый статус события: " + s);
+                        }
+                    })
+                    .toList();
+            return root.get("state").in(converted);
+        };
     }
 
     public static Specification<Event> hasCategories(AdminParamSearch search) {

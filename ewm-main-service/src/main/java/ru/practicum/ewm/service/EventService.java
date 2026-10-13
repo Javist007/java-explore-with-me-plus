@@ -11,7 +11,7 @@ import ru.practicum.ewm.dto.event.response.ParticipationRequestDto;
 import java.util.List;
 
 public interface EventService {
-    void createEvent(NewEventRequest request, Long userId);
+    EventFullDto createEvent(NewEventRequest request, Long userId);
 
     List<EventShortDto> getEvents(Long userId, EventSearchRequest request);
 
