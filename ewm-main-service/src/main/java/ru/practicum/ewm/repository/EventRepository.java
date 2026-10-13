@@ -23,4 +23,19 @@ public interface EventRepository extends JpaRepository<Event, Long>, JpaSpecific
     Optional<Event> findByInitiatorIdAndId(Long initiatorId, Long eventId);
 
 
+    /**
+     * Поиск события по идентификатору среди событий указанного инициатора (используется в заявках).
+     */
+    Optional<Event> findByIdAndInitiatorId(Long eventId, Long initiatorId);
+
+    /**
+     * Проверка, что событие существует и принадлежит указанному инициатору (используется в заявках).
+     */
+    boolean existsByIdAndInitiatorId(Long eventId, Long initiatorId);
+
+    /**
+     * Проверка, существуют ли события в указанной категории.
+     */
+    boolean existsByCategoryId(Long categoryId);
+
 }

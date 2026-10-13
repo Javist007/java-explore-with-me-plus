@@ -26,6 +26,7 @@ public class Event {
     private Category category;
 
     @Column(nullable = false)
+    @Builder.Default
     private Long confirmedRequests = 0L;
 
     @Column(nullable = false, updatable = false)
@@ -63,5 +64,6 @@ public class Event {
     private String title;
 
     @Column(nullable = false)
+    @Builder.Default
     private Long views = 0L;
 }
