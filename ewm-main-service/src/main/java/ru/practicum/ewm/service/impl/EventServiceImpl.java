@@ -13,21 +13,20 @@ import ru.practicum.ewm.dto.event.request.*;
 import ru.practicum.ewm.dto.event.response.EventFullDto;
 import ru.practicum.ewm.dto.event.response.EventRequestStatusUpdateResult;
 import ru.practicum.ewm.dto.event.response.EventShortDto;
-import ru.practicum.ewm.dto.event.response.ParticipationRequestDto;
+import ru.practicum.ewm.dto.participation.response.ParticipationRequestDto;
 import ru.practicum.ewm.exception.model.BadRequestException;
 import ru.practicum.ewm.exception.model.ConflictException;
 import ru.practicum.ewm.exception.model.NotFoundException;
-import ru.practicum.ewm.model.Category;
-import ru.practicum.ewm.model.Event;
-import ru.practicum.ewm.model.EventState;
-import ru.practicum.ewm.model.User;
+import ru.practicum.ewm.model.*;
 import ru.practicum.ewm.repository.CategoryRepository;
 import ru.practicum.ewm.repository.EventRepository;
+import ru.practicum.ewm.repository.ParticipationRequestRepository;
 import ru.practicum.ewm.repository.UserRepository;
 import ru.practicum.ewm.repository.spec.AdminEventSpecs;
 import ru.practicum.ewm.repository.spec.PublicEventSpecs;
 import ru.practicum.ewm.service.EventService;
 import ru.practicum.ewm.service.mapper.EventMapper;
+import ru.practicum.ewm.service.mapper.RequestMapper;
 import ru.practicum.stats.client.StatClient;
 import ru.practicum.stats.dto.EndpointHitDto;
 import ru.practicum.stats.dto.ViewStatsDto;
@@ -160,7 +159,7 @@ public class EventServiceImpl implements EventService {
     public List<ParticipationRequestDto> getEventRequest(Long userId, Long eventId) {
         Event event = eventRepository.findByInitiatorIdAndId(userId, eventId)
                 .orElseThrow(() -> new NotFoundException("Event не найден"));
-        return participationRepository.findAllByEventIdOrderByCreated(eventId).stream()
+        return participationRepository.findAllByEventId(eventId).stream()
                 .map(RequestMapper::toDto)
                 .toList();
     }
@@ -232,12 +231,11 @@ public class EventServiceImpl implements EventService {
         event.setConfirmedRequests(newConfirmed);
 
         if (event.getParticipantLimit() > 0 && newConfirmed >= event.getParticipantLimit()) {
-            List<ParticipationRequest> leftovers = participationRepository
-                    .findAllByEventIdAndStatus(context.getEventId(), RequestStatus.PENDING);
-            if (!leftovers.isEmpty()) {
-                leftovers.forEach(r -> r.setStatus(RequestStatus.REJECTED));
-                participationRepository.saveAll(leftovers);
-            }
+            participationRepository.updateStatusByEventId(
+                    context.getEventId(),
+                    RequestStatus.PENDING,
+                    RequestStatus.REJECTED
+            );
         }
 
         return EventRequestStatusUpdateResult.builder()
