@@ -381,6 +381,8 @@ public class EventServiceImpl implements EventService {
 
         long confirmedRequests = requestService.getConfirmedRequestsCount(List.of(eventId)).getOrDefault(eventId, 0L);
 
+        long confirmedRequests = requestService.getConfirmedRequestsCount(List.of(eventId)).getOrDefault(eventId, 0L);
+
         EventFullDto dto = EventMapper.toDto(event);
         dto.setViews(views);
         dto.setConfirmedRequests(confirmedRequests);
