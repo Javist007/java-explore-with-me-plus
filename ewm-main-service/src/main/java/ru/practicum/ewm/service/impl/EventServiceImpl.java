@@ -31,9 +31,6 @@ import ru.practicum.ewm.service.mapper.EventMapper;
 import ru.practicum.stats.client.StatClient;
 import ru.practicum.stats.dto.EndpointHitDto;
 import ru.practicum.stats.dto.ViewStatsDto;
-import ru.practicum.ewm.model.ParticipationRequest;
-import ru.practicum.ewm.model.RequestStatus;
-
 
 import java.time.LocalDateTime;
 import java.util.*;
@@ -49,6 +46,8 @@ public class EventServiceImpl implements EventService {
     private final CategoryRepository categoryRepository;
     private final ParticipationRequestRepository participationRepository;
     private final StatClient statClient;
+
+    private static final String EVENT_URI_PREFIX = "/events/";
 
     @Override
     @Transactional
@@ -89,15 +88,13 @@ public class EventServiceImpl implements EventService {
     @Transactional(readOnly = true)
     public EventFullDto getEventsUser(Long userId, Long eventId) {
         Event event = eventRepository.findByInitiatorIdAndId(userId, eventId)
-                .orElseThrow(()-> new NotFoundException("Event не найден"));
+                .orElseThrow(() -> new NotFoundException("Event не найден"));
         return EventMapper.toDto(event);
     }
 
     @Override
     @Transactional
     public EventFullDto updateEvent(UpdateEventContext context) {
-        userRepository.findById(context.getUserId())
-                .orElseThrow(() -> new NotFoundException("User не найден"));
         Event event = eventRepository.findByInitiatorIdAndId(context.getUserId(), context.getEventId())
                 .orElseThrow(() -> new NotFoundException("Event не найден"));
 
@@ -150,7 +147,7 @@ public class EventServiceImpl implements EventService {
         if (context.getRequest().hasStateAction()) {
             switch (context.getRequest().getStateAction()) {
                 case SEND_TO_REVIEW -> event.setState(EventState.PENDING);
-                case CANCEL_REVIEW  -> event.setState(EventState.CANCELED);
+                case CANCEL_REVIEW -> event.setState(EventState.CANCELED);
             }
         }
 
@@ -162,7 +159,7 @@ public class EventServiceImpl implements EventService {
     @Transactional(readOnly = true)
     public List<ParticipationRequestDto> getEventRequest(Long userId, Long eventId) {
         Event event = eventRepository.findByInitiatorIdAndId(userId, eventId)
-                .orElseThrow(()-> new NotFoundException("Event не найден"));
+                .orElseThrow(() -> new NotFoundException("Event не найден"));
         return participationRepository.findAllByEventIdOrderByCreated(eventId).stream()
                 .map(RequestMapper::toDto)
                 .toList();
@@ -235,7 +232,12 @@ public class EventServiceImpl implements EventService {
         event.setConfirmedRequests(newConfirmed);
 
         if (event.getParticipantLimit() > 0 && newConfirmed >= event.getParticipantLimit()) {
-            event.setState(EventState.CLOSED);   // места больше нет — закрываем событие
+            List<ParticipationRequest> leftovers = participationRepository
+                    .findAllByEventIdAndStatus(context.getEventId(), RequestStatus.PENDING);
+            if (!leftovers.isEmpty()) {
+                leftovers.forEach(r -> r.setStatus(RequestStatus.REJECTED));
+                participationRepository.saveAll(leftovers);
+            }
         }
 
         return EventRequestStatusUpdateResult.builder()
@@ -405,27 +407,25 @@ public class EventServiceImpl implements EventService {
         }
 
         List<String> uris = events.stream()
-                .map(event -> "/events/" + event.getId())
+                .map(event -> EVENT_URI_PREFIX + event.getId())
                 .collect(Collectors.toList());
 
-        LocalDateTime start = rangeStart != null ? rangeStart : LocalDateTime.of(2020, 1, 1, 0, 0);
-        LocalDateTime end = rangeEnd != null ? rangeEnd : LocalDateTime.now();
-
-        List<ViewStatsDto> stats = statClient.getStats(start, end, uris, false);
+        LocalDateTime statsStart = LocalDateTime.of(2020, 1, 1, 0, 0);
+        LocalDateTime statsEnd = LocalDateTime.now().plusSeconds(1);
+        List<ViewStatsDto> stats = statClient.getStats(statsStart, statsEnd, uris, false);
 
         Map<Long, Long> viewsMap = stats.stream()
+                .filter(v -> v.getUri() != null && v.getUri().matches("/events/\\d+"))
                 .collect(Collectors.toMap(
-                        viewStat -> Long.parseLong(viewStat.getUri().replace("/events/", "")),
+                        v -> Long.parseLong(v.getUri().substring("/events/".length())),
                         ViewStatsDto::getHits,
-                        Long::sum
-                ));
+                        Long::sum));
 
         List<EventShortDto> dtos = events.stream()
                 .map(EventMapper::toShortDto)
                 .peek(dto -> dto.setViews(viewsMap.getOrDefault(dto.getId(), 0L)))
                 .collect(Collectors.toList());
 
-        // сортировка по просмотрам — уже по обогащённым DTO (views в БД всегда 0)
         if (request.getSort() == PublicParamSearch.Sort.VIEWS) {
             dtos.sort(Comparator.comparingLong(EventShortDto::getViews).reversed());
         }
@@ -436,13 +436,13 @@ public class EventServiceImpl implements EventService {
     @Transactional(readOnly = true)
     public EventFullDto getPublicEventId(Long eventId, HttpServletRequest servletRequest) {
         Event event = eventRepository.findById(eventId)
-                .orElseThrow(()-> new NotFoundException("Event не найден"));
+                .orElseThrow(() -> new NotFoundException("Event не найден"));
 
-        if(event.getState() != EventState.PUBLISHED){
+        if (event.getState() != EventState.PUBLISHED) {
             throw new NotFoundException("Event не опубликован");
         }
 
-        String uri = "/events/" + eventId;
+        String uri = EVENT_URI_PREFIX + eventId;
         statClient.saveHit(EndpointHitDto.builder()
                 .app("ewm-main-service").uri(uri)
                 .ip(servletRequest.getRemoteAddr())

@@ -3,7 +3,6 @@ package ru.practicum.ewm.controller;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
-import org.springframework.transaction.annotation.Transactional;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 import ru.practicum.ewm.dto.event.request.AdminParamSearch;
@@ -19,7 +18,7 @@ import java.util.List;
 @Validated
 public class AdminEventController {
 
-    private  final EventService eventService;
+    private final EventService eventService;
 
     @GetMapping
     @ResponseStatus(HttpStatus.OK)

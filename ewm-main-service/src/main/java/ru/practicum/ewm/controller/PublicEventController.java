@@ -5,7 +5,6 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
-import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 import ru.practicum.ewm.dto.event.request.PublicParamSearch;
 import ru.practicum.ewm.dto.event.response.EventFullDto;
@@ -31,7 +30,7 @@ public class PublicEventController {
     @GetMapping("/{eventId}")
     @ResponseStatus(HttpStatus.OK)
     public EventFullDto getEvent(@PathVariable Long eventId, HttpServletRequest servletRequest) {
-        return eventService.getPublicEventId(eventId,servletRequest);
+        return eventService.getPublicEventId(eventId, servletRequest);
     }
 
 }

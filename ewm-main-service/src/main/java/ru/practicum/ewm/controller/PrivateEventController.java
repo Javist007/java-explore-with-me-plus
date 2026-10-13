@@ -3,7 +3,6 @@ package ru.practicum.ewm.controller;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
-import org.springframework.transaction.annotation.Transactional;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 import ru.practicum.ewm.dto.event.request.*;
@@ -27,13 +26,13 @@ public class PrivateEventController {
     @ResponseStatus(HttpStatus.CREATED)
 
     public EventFullDto createEvent(@PathVariable Long userId, @RequestBody @Valid NewEventRequest request) {
-       return eventService.createEvent(request, userId);
+        return eventService.createEvent(request, userId);
     }
 
     @GetMapping
     @ResponseStatus(HttpStatus.OK)
     public List<EventShortDto> getEvents(@PathVariable Long userId, @ModelAttribute @Valid EventSearchRequest request) {
-        return eventService.getEvents(userId,request);
+        return eventService.getEvents(userId, request);
     }
 
     @GetMapping("/{eventId}")

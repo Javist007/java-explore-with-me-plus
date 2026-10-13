@@ -18,7 +18,6 @@ public class PublicEventSpecs {
             Expression<String> annotation = cb.lower(root.get("annotation"));
             Expression<String> description = cb.lower(root.get("description"));
 
-            // annotation LIKE '%text%' OR description LIKE '%text%'
             return cb.or(
                     cb.like(annotation, pattern),
                     cb.like(description, pattern)
@@ -50,11 +49,18 @@ public class PublicEventSpecs {
     }
 
     public static Specification<Event> isAvailable() {
-        return (root, query, cb) ->
-                cb.or(
-                        cb.equal(root.get("participantLimit"), 0),
-                        cb.greaterThan(root.get("participantLimit"), root.get("confirmedRequests"))
-                );
+        return (root, query, cb) -> {
+            if (query != null) {
+                query.distinct(true);
+            }
+            return cb.and(
+                    cb.equal(root.get("state"), EventState.PUBLISHED),
+                    cb.or(
+                            cb.equal(root.get("participantLimit"), 0),
+                            cb.lessThan(root.get("confirmedRequests"), root.get("participantLimit"))
+                    )
+            );
+        };
     }
 
     public static Specification<Event> hasCategories(List<Long> categories) {

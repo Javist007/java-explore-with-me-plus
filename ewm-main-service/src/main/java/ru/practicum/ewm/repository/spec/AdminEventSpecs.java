@@ -1,7 +1,6 @@
 package ru.practicum.ewm.repository.spec;
 
 import org.springframework.data.jpa.domain.Specification;
-import ru.practicum.ewm.common.DateTimeConstants;
 import ru.practicum.ewm.dto.event.request.AdminParamSearch;
 import ru.practicum.ewm.exception.model.BadRequestException;
 import ru.practicum.ewm.model.Event;
