@@ -13,8 +13,7 @@ public class PublicEventSpecs {
 
     public static Specification<Event> textSearch(String text) {
         return (root, query, cb) -> {
-            if (text == null || text.isBlank()) return null;
-
+            if (text == null || text.isBlank()) return cb.conjunction();
             String pattern = "%" + text.toLowerCase() + "%";
             Expression<String> annotation = cb.lower(root.get("annotation"));
             Expression<String> description = cb.lower(root.get("description"));
@@ -33,8 +32,7 @@ public class PublicEventSpecs {
     }
 
     public static Specification<Event> isPaid(Boolean paid) {
-        return (root, query, cb) ->
-                paid != null ? cb.equal(root.get("paid"), paid) : null;
+        return (root, query, cb) -> paid != null ? cb.equal(root.get("paid"), paid) : cb.conjunction();
     }
 
     public static Specification<Event> eventDateRange(LocalDateTime start, LocalDateTime end) {
@@ -65,7 +63,7 @@ public class PublicEventSpecs {
                 return root.get("category").get("id").in(categories);
             }
 
-            return null;
+            return cb.conjunction();
         };
     }
 

@@ -25,13 +25,14 @@ public final class EventMapper {
      * Преобразует запрос на создание события в сущность.
      */
     public static Event toEntity(NewEventRequest request, User initiator, Category category) {
+        LocalDateTime eventDate = LocalDateTime.parse(request.getEventDate(), FORMATTER);
         return Event.builder()
                 .annotation(request.getAnnotation())
                 .category(category)
                 .confirmedRequests(0L)
                 .createdOn(LocalDateTime.now())
                 .description(request.getDescription())
-                .eventDate(LocalDateTime.parse(request.getEventDate(), FORMATTER))
+                .eventDate(eventDate)
                 .initiator(initiator)
                 .location(request.getLocation())
                 .paid(request.getPaid() != null ? request.getPaid() : false)

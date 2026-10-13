@@ -3,6 +3,7 @@ package ru.practicum.ewm.repository.spec;
 import org.springframework.data.jpa.domain.Specification;
 import ru.practicum.ewm.common.DateTimeConstants;
 import ru.practicum.ewm.dto.event.request.AdminParamSearch;
+import ru.practicum.ewm.exception.model.BadRequestException;
 import ru.practicum.ewm.model.Event;
 import ru.practicum.ewm.model.EventState;
 
@@ -11,11 +12,10 @@ import java.util.List;
 
 public class AdminEventSpecs {
     public static Specification<Event> hasUser(AdminParamSearch search) {
-        return (root, query, cb) ->{
-            return search.getUsers() != null && !search.getUsers().isEmpty()
-                    ? root.get("initiator").get("id").in(search.getUsers())
-                    : null;
-        };
+        return (root, query, cb) ->
+                (search.getUsers() != null && !search.getUsers().isEmpty())
+                        ? root.get("initiator").in(search.getUsers())
+                        : cb.conjunction();
     }
 
     public static Specification<Event> hasStates(AdminParamSearch search) {
@@ -26,7 +26,7 @@ public class AdminEventSpecs {
                         try {
                             return EventState.valueOf(s.toUpperCase());
                         } catch (IllegalArgumentException e) {
-                            throw new ru.practicum.ewm.exception.model.BadRequestException(
+                            throw new BadRequestException(
                                     "Недопустимый статус события: " + s);
                         }
                     })
@@ -48,25 +48,16 @@ public class AdminEventSpecs {
     }
 
 
-    public static Specification<Event> hasRangeStart(AdminParamSearch search) {
-        return (root, query, cb) -> {
-            if (search.getRangeStart() != null) {
-                LocalDateTime start = LocalDateTime.parse(search.getRangeStart(), DateTimeConstants.FORMATTER);
-                return cb.greaterThanOrEqualTo(root.get("eventDate"), start);
-            }
-            return null;
-        };
+    public static Specification<Event> hasRangeStart(LocalDateTime start) {
+        return (root, query, cb) -> start != null
+                ? cb.greaterThanOrEqualTo(root.get("eventDate"), start)
+                : cb.conjunction();
     }
 
-    public static Specification<Event> hasRangeEnd(AdminParamSearch search) {
-        return (root, query, cb) -> {
-            if (search.getRangeEnd() != null) {
-                LocalDateTime end = LocalDateTime.parse(search.getRangeEnd(), DateTimeConstants.FORMATTER);
-                return cb.lessThanOrEqualTo(root.get("eventDate"), end);
-            }
-            return null;
-        };
-
+    public static Specification<Event> hasRangeEnd(LocalDateTime end) {
+        return (root, query, cb) -> end != null
+                ? cb.lessThanOrEqualTo(root.get("eventDate"), end)
+                : cb.conjunction();
     }
 
 }

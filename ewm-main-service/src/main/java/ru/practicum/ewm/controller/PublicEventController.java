@@ -2,6 +2,7 @@ package ru.practicum.ewm.controller;
 
 
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.transaction.annotation.Transactional;
@@ -23,7 +24,7 @@ public class PublicEventController {
 
     @GetMapping
     @ResponseStatus(HttpStatus.OK)
-    public List<EventShortDto> getEvents(PublicParamSearch request) {
+    public List<EventShortDto> getEvents(@ModelAttribute @Valid PublicParamSearch request) {
         return eventService.getPublicEvents(request);
     }
 

@@ -23,7 +23,7 @@ public class AdminEventController {
 
     @GetMapping
     @ResponseStatus(HttpStatus.OK)
-    public List<EventFullDto> getEvents(@ModelAttribute AdminParamSearch request) {
+    public List<EventFullDto> getEvents(@ModelAttribute @Valid AdminParamSearch request) {
         return eventService.adminGetEvents(request);
     }
 
