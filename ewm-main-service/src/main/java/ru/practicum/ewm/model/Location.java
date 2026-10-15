@@ -14,9 +14,15 @@ import lombok.*;
 @NoArgsConstructor
 @AllArgsConstructor
 public class Location {
+    /**
+     * Широта местоположения.
+     */
     @Column(nullable = false)
     private Float lat;
 
+    /**
+     * Долгота местоположения.
+     */
     @Column(nullable = false)
     private Float lon;
 }

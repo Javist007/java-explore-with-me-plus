@@ -2,63 +2,120 @@ package ru.practicum.ewm.model;
 
 import jakarta.persistence.*;
 import lombok.*;
+import ru.practicum.ewm.dto.event.Location;
 
 import java.time.LocalDateTime;
 
 /**
- * Сущность события в базе данных.
+ * Сущность события.
+ * Представляет событие в системе с полной информацией о его параметрах и статусе.
  */
 @Entity
 @Table(name = "events")
 @Getter
 @Setter
-@Builder
 @NoArgsConstructor
 @AllArgsConstructor
+@Builder
 public class Event {
+    /**
+     * Уникальный идентификатор события.
+     */
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(nullable = false, length = 120)
-    private String title;
-
-    @Column(nullable = false, length = 2000)
+    /**
+     * Краткое описание события (аннотация).
+     */
+    @Column(nullable = false)
     private String annotation;
 
-    @Column(nullable = false, length = 7000)
-    private String description;
-
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    /**
+     * Категория события.
+     */
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "category_id")
     private Category category;
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    /**
+     * Количество подтвержденных заявок на участие в событии.
+     */
+    @Column(nullable = false)
+    @Builder.Default
+    private Long confirmedRequests = 0L;
+
+    /**
+     * Дата и время создания события.
+     */
+    @Column(nullable = false, updatable = false)
+    private LocalDateTime createdOn;
+
+    /**
+     * Полное описание события.
+     */
+    @Column(nullable = false, columnDefinition = "TEXT")
+    private String description;
+
+    /**
+     * Дата и время проведения события.
+     */
+    @Column(nullable = false)
+    private LocalDateTime eventDate;
+
+    /**
+     * Пользователь-инициатор события.
+     */
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "initiator_id")
     private User initiator;
 
-    @Column(name = "event_date", nullable = false)
-    private LocalDateTime eventDate;
-
-    @Column(name = "created_on", nullable = false)
-    private LocalDateTime createdOn;
-
-    @Column(name = "published_on")
-    private LocalDateTime publishedOn;
-
+    /**
+     * Место проведения события (географические координаты).
+     */
     @Embedded
     private Location location;
 
+    /**
+     * Флаг, указывающий является ли событие платным.
+     */
     @Column(nullable = false)
-    private Boolean paid;
+    private Boolean paid = false;
 
-    @Column(name = "participant_limit", nullable = false)
-    private Integer participantLimit;
+    /**
+     * Лимит количества участников события.
+     */
+    @Column(nullable = false)
+    private Integer participantLimit = 0;
 
-    @Column(name = "request_moderation", nullable = false)
-    private Boolean requestModeration;
+    /**
+     * Дата и время публикации события.
+     */
+    private LocalDateTime publishedOn;
 
+    /**
+     * Флаг, указывающий нужна ли модерация заявок на участие.
+     */
+    @Column(nullable = false)
+    private Boolean requestModeration = true;
+
+    /**
+     * Статус события.
+     */
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false, length = 20)
-    private EventState state;
+    @Column(nullable = false)
+    private EventState state = EventState.PENDING;
+
+    /**
+     * Заголовок события.
+     */
+    @Column(nullable = false)
+    private String title;
+
+    /**
+     * Количество просмотров события.
+     */
+    @Column(nullable = false)
+    @Builder.Default
+    private Long views = 0L;
 }
