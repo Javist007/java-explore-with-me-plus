@@ -31,7 +31,7 @@ public class Compilation {
 
     @ManyToMany(fetch = FetchType.LAZY)
     @JoinTable(
-            name = "compilation_event",
+            name = "compilation_events",
             joinColumns = @JoinColumn(name = "compilation_id"),
             inverseJoinColumns = @JoinColumn(name = "event_id")
     )
