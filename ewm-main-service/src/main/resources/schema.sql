@@ -26,7 +26,9 @@ CREATE TABLE IF NOT EXISTS events (
     paid               BOOLEAN       NOT NULL,
     participant_limit  INTEGER       NOT NULL,
     request_moderation BOOLEAN       NOT NULL,
-    state              VARCHAR(20)   NOT NULL
+    state              VARCHAR(20)   NOT NULL,
+    confirmed_requests BIGINT        NOT NULL DEFAULT 0,
+    views              BIGINT        NOT NULL DEFAULT 0
 );
 
 CREATE TABLE IF NOT EXISTS requests (
