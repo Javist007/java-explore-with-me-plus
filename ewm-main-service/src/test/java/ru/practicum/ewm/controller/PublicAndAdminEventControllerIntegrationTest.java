@@ -26,15 +26,9 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyBoolean;
-import static org.mockito.ArgumentMatchers.anyList;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
+import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.Mockito.*;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -66,17 +60,28 @@ class PublicAndAdminEventControllerIntegrationTest {
     private User initiator;
     private Category category;
 
+    /**
+     * Инициализирует тестовые данные перед выполнением каждого теста.
+     * Создает тестового инициатора и категорию.
+     */
     @BeforeEach
     void setUp() {
         initiator = User.builder().name("Инициатор").email("init@test.ru").build();
         category = Category.builder().name("Театр").build();
-        // сохраняем через репозиторий пользователей/категорий нельзя (их не инжектим) —
-        // сохраним через EntityManager-зависимость EventRepository не подходит, используем JPA напрямую
     }
 
     @jakarta.persistence.PersistenceContext
     private jakarta.persistence.EntityManager em;
 
+    /**
+     * Создает и сохраняет событие с указанными параметрами.
+     * При необходимости сохраняет инициатора и категорию в базе данных.
+     *
+     * @param state     статус события
+     * @param eventDate дата проведения события
+     * @param title     заголовок события
+     * @return сохраненная сущность события
+     */
     private Event persistEvent(EventState state, LocalDateTime eventDate, String title) {
         if (initiator.getId() == null) {
             em.persist(initiator);
@@ -105,6 +110,11 @@ class PublicAndAdminEventControllerIntegrationTest {
         return eventRepository.save(e);
     }
 
+    /**
+     * Тестирует сохранение хита и обогащение ответа статистикой просмотров.
+     * Проверяет, что при запросе опубликованного события сохраняется хит в статистике
+     * и количество просмотров из статистики попадает в ответ.
+     */
     @Test
     @DisplayName("GET /events/{id}: сохранён хит и views из статистики попали в ответ")
     void publicDetailsSaveHitAndFillViews() throws Exception {
@@ -123,6 +133,11 @@ class PublicAndAdminEventControllerIntegrationTest {
         verify(statClient).saveHit(any());
     }
 
+    /**
+     * Тестирует скрытие неопубликованных событий.
+     * Проверяет, что событие в статусе PENDING недоступно публично
+     * и хит не сохраняется в статистике.
+     */
     @Test
     @DisplayName("GET /events/{id}: PENDING-событие недоступно публично -> 404, хит не пишется")
     void publicDetailsHidesPending() throws Exception {
@@ -134,6 +149,10 @@ class PublicAndAdminEventControllerIntegrationTest {
         verify(statClient, never()).saveHit(any());
     }
 
+    /**
+     * Тестирует обработку несуществующего события.
+     * Проверяет, что запрос несуществующего события возвращает 404.
+     */
     @Test
     @DisplayName("GET /events/{id}: несуществующее событие -> 404")
     void publicDetailsNotFound() throws Exception {
@@ -142,6 +161,11 @@ class PublicAndAdminEventControllerIntegrationTest {
     }
 
 
+    /**
+     * Тестирует фильтрацию только опубликованных событий в публичном поиске.
+     * Проверяет, что в выдачу попадают только события в статусе PUBLISHED
+     * и количество просмотров подставляется из статистики.
+     */
     @Test
     @DisplayName("GET /events: в выдачу попадают только PUBLISHED, views подставляются из статистики")
     void publicSearchReturnsOnlyPublishedWithViews() throws Exception {
@@ -159,6 +183,11 @@ class PublicAndAdminEventControllerIntegrationTest {
                 .andExpect(jsonPath("$[?(@.title == 'Невидимое событие номер два')]").doesNotExist());
     }
 
+    /**
+     * Тестирует сортировку событий по количеству просмотров.
+     * Проверяет, что параметр sort=VIEWS упорядочивает события
+     * по убыванию количества просмотров из статистики.
+     */
     @Test
     @DisplayName("GET /events: sort=VIEWS упорядочивает по убыванию просмотров из статистики")
     void publicSearchSortsByViews() throws Exception {
@@ -178,6 +207,11 @@ class PublicAndAdminEventControllerIntegrationTest {
                 .andExpect(jsonPath("$[1].id").value(low.getId()));
     }
 
+    /**
+     * Тестирует скрытие прошедших событий по умолчанию.
+     * Проверяет, что прошедшие события скрыты в публичном поиске
+     * при отсутствии параметров rangeStart/rangeEnd.
+     */
     @Test
     @DisplayName("GET /events: прошедшее событие скрыто без rangeStart/rangeEnd (фильтр isFuture)")
     void publicSearchHidesPastEvents() throws Exception {
@@ -189,6 +223,10 @@ class PublicAndAdminEventControllerIntegrationTest {
                 .andExpect(jsonPath("$").isEmpty());
     }
 
+    /**
+     * Тестирует отображение прошедших событий при указанном диапазоне дат.
+     * Проверяет, что явное указание диапазона дат позволяет увидеть прошедшие события.
+     */
     @Test
     @DisplayName("GET /events: тот же диапазон дат явно разрешает прошедшие события")
     void publicSearchRangeOverridesFutureFilter() throws Exception {
@@ -202,8 +240,13 @@ class PublicAndAdminEventControllerIntegrationTest {
                         .param("text", "интеграционного")
                         .param("from", "0").param("size", "10"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$[0].id").value(past.getId()));    }
+                .andExpect(jsonPath("$[0].id").value(past.getId()));
+    }
 
+    /**
+     * Тестирует обработку неверного формата даты.
+     * Проверяет, что неверный формат параметра rangeStart возвращает 400.
+     */
     @Test
     @DisplayName("GET /events: неверный формат rangeStart -> 400")
     void publicSearchBadDateFormatReturns400() throws Exception {
@@ -211,6 +254,10 @@ class PublicAndAdminEventControllerIntegrationTest {
                 .andExpect(status().isBadRequest());
     }
 
+    /**
+     * Тестирует валидацию параметра size.
+     * Проверяет, что size=0 возвращает ошибку 400 на уровне Bean Validation.
+     */
     @Test
     @DisplayName("GET /events: size=0 -> 400 (Bean Validation @Min(1))")
     void publicSearchZeroSizeReturns400() throws Exception {
@@ -218,6 +265,11 @@ class PublicAndAdminEventControllerIntegrationTest {
                 .andExpect(status().isBadRequest());
     }
 
+    /**
+     * Тестирует публикацию события администратором.
+     * Проверяет, что публикация переводит событие из PENDING в PUBLISHED
+     * и оно становится доступно в публичном поиске.
+     */
     @Test
     @DisplayName("PATCH /admin/events/{id}: публикация переводит PENDING -> PUBLISHED и событие становится видно публично")
     void adminPublishMakesEventVisible() throws Exception {
@@ -239,8 +291,14 @@ class PublicAndAdminEventControllerIntegrationTest {
                         .param("text", "интеграционного")
                         .param("from", "0").param("size", "10"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$[0].id").value(e.getId()));    }
+                .andExpect(jsonPath("$[0].id").value(e.getId()));
+    }
 
+    /**
+     * Тестирует отклонение опубликованного события.
+     * Проверяет, что попытка отклонить уже опубликованное событие
+     * возвращает ошибку 409 Conflict.
+     */
     @Test
     @DisplayName("PATCH /admin/events/{id}: отклонение уже опубликованного события -> 409")
     void adminRejectPublishedReturns409() throws Exception {
@@ -255,6 +313,10 @@ class PublicAndAdminEventControllerIntegrationTest {
                 .andExpect(status().isConflict());
     }
 
+    /**
+     * Тестирует фильтрацию событий по статусу администратором.
+     * Проверяет, что фильтр states=PUBLISHED возвращает только опубликованные события.
+     */
     @Test
     @DisplayName("GET /admin/events: фильтр states=PUBLISHED работает, чужие статусы отсекаются")
     void adminSearchFiltersByState() throws Exception {
@@ -271,6 +333,10 @@ class PublicAndAdminEventControllerIntegrationTest {
                 .andExpect(jsonPath("$[?(@.id == " + canceled.getId() + ")]").doesNotExist());
     }
 
+    /**
+     * Тестирует обработку несуществующего статуса.
+     * Проверяет, что несуществующий статус возвращает ошибку 400.
+     */
     @Test
     @DisplayName("GET /admin/events: несуществующий state -> 400 BadRequestException из спецификации")
     void adminSearchInvalidStateReturns400() throws Exception {
@@ -278,6 +344,10 @@ class PublicAndAdminEventControllerIntegrationTest {
                 .andExpect(status().isBadRequest());
     }
 
+    /**
+     * Тестирует сквозную валидацию DTO на уровне контроллера.
+     * Проверяет, что невалидное тело запроса возвращает ошибку 400.
+     */
     @Test
     @DisplayName("POST /users/{id}/events c валидным телом проходит сквозную валидацию DTO (@Valid на контроллере)")
     void createEventValidationWorksThroughController() throws Exception {

@@ -9,7 +9,17 @@ import ru.practicum.ewm.model.EventState;
 import java.time.LocalDateTime;
 import java.util.List;
 
+/**
+ * Класс спецификаций для фильтрации событий администратором.
+ * Предоставляет статические методы для создания JPA Specification на основе параметров поиска.
+ */
 public class AdminEventSpecs {
+    /**
+     * Создает спецификацию для фильтрации по пользователям-инициаторам.
+     *
+     * @param search параметры поиска событий
+     * @return спецификация для фильтрации по пользователям
+     */
     public static Specification<Event> hasUser(AdminParamSearch search) {
         return (root, query, cb) ->
                 (search.getUsers() != null && !search.getUsers().isEmpty())
@@ -17,6 +27,14 @@ public class AdminEventSpecs {
                         : cb.conjunction();
     }
 
+    /**
+     * Создает спецификацию для фильтрации по состояниям событий.
+     * Преобразует строковые состояния в enum EventState.
+     *
+     * @param search параметры поиска событий
+     * @return спецификация для фильтрации по состояниям
+     * @throws BadRequestException если указан недопустимый статус
+     */
     public static Specification<Event> hasStates(AdminParamSearch search) {
         return (root, query, cb) -> {
             if (search.getStates() == null || search.getStates().isEmpty()) return cb.conjunction();
@@ -34,6 +52,12 @@ public class AdminEventSpecs {
         };
     }
 
+    /**
+     * Создает спецификацию для фильтрации по категориям событий.
+     *
+     * @param search параметры поиска событий
+     * @return спецификация для фильтрации по категориям
+     */
     public static Specification<Event> hasCategories(AdminParamSearch search) {
         return (root, query, cb) -> {
             List<Long> categories = search.getCategories();
@@ -47,12 +71,24 @@ public class AdminEventSpecs {
     }
 
 
+    /**
+     * Создает спецификацию для фильтрации по началу диапазона дат событий.
+     *
+     * @param start начало диапазона дат
+     * @return спецификация для фильтрации по началу диапазона
+     */
     public static Specification<Event> hasRangeStart(LocalDateTime start) {
         return (root, query, cb) -> start != null
                 ? cb.greaterThanOrEqualTo(root.get("eventDate"), start)
                 : cb.conjunction();
     }
 
+    /**
+     * Создает спецификацию для фильтрации по концу диапазона дат событий.
+     *
+     * @param end конец диапазона дат
+     * @return спецификация для фильтрации по концу диапазона
+     */
     public static Specification<Event> hasRangeEnd(LocalDateTime end) {
         return (root, query, cb) -> end != null
                 ? cb.lessThanOrEqualTo(root.get("eventDate"), end)

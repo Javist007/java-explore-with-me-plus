@@ -15,7 +15,10 @@ import ru.practicum.ewm.dto.event.response.EventShortDto;
 import ru.practicum.ewm.exception.model.BadRequestException;
 import ru.practicum.ewm.exception.model.ConflictException;
 import ru.practicum.ewm.exception.model.NotFoundException;
-import ru.practicum.ewm.model.*;
+import ru.practicum.ewm.model.Category;
+import ru.practicum.ewm.model.Event;
+import ru.practicum.ewm.model.EventState;
+import ru.practicum.ewm.model.User;
 import ru.practicum.ewm.repository.CategoryRepository;
 import ru.practicum.ewm.repository.EventRepository;
 import ru.practicum.ewm.repository.UserRepository;
@@ -29,9 +32,17 @@ import ru.practicum.stats.dto.EndpointHitDto;
 import ru.practicum.stats.dto.ViewStatsDto;
 
 import java.time.LocalDateTime;
-import java.util.*;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
+/**
+ * Реализация сервиса для работы с событиями.
+ * Обеспечивает создание, поиск, обновление и получение информации о событиях
+ * с учетом прав доступа пользователей и администраторов.
+ */
 @Service
 @Transactional(readOnly = true)
 @RequiredArgsConstructor
@@ -45,6 +56,16 @@ public class EventServiceImpl implements EventService {
 
     private static final String EVENT_URI_PREFIX = "/events/";
 
+    /**
+     * Создает новое событие от имени пользователя.
+     * Проверяет существование пользователя и категории, валидирует дату события.
+     *
+     * @param request данные для создания события
+     * @param userId  идентификатор пользователя-инициатора
+     * @return полное DTO созданного события
+     * @throws NotFoundException если пользователь или категория не найдены
+     * @throws ConflictException если дата события раньше чем через 2 часа от текущего момента
+     */
     @Override
     @Transactional
     public EventFullDto createEvent(NewEventRequest request, Long userId) {
@@ -63,6 +84,16 @@ public class EventServiceImpl implements EventService {
         return EventMapper.toDto(eventRepository.save(EventMapper.toEntity(request, user, category)));
     }
 
+    /**
+     * Получает список событий пользователя с пагинацией.
+     * Загружает количество подтвержденных заявок для каждого события.
+     *
+     * @param userId  идентификатор пользователя
+     * @param request параметры поиска и пагинации
+     * @return список кратких DTO событий пользователя
+     * @throws NotFoundException   если пользователь не найден
+     * @throws BadRequestException если параметр size некорректен
+     */
     @Override
     @Transactional(readOnly = true)
     public List<EventShortDto> getEvents(Long userId, EventSearchRequest request) {
@@ -85,6 +116,15 @@ public class EventServiceImpl implements EventService {
                 .toList();
     }
 
+    /**
+     * Получает полную информацию о событии пользователя.
+     * Проверяет принадлежность события пользователю и загружает количество подтвержденных заявок.
+     *
+     * @param userId  идентификатор пользователя
+     * @param eventId идентификатор события
+     * @return полное DTO события
+     * @throws NotFoundException если событие не найдено или не принадлежит пользователю
+     */
     @Override
     @Transactional(readOnly = true)
     public EventFullDto getEventsUser(Long userId, Long eventId) {
@@ -96,6 +136,16 @@ public class EventServiceImpl implements EventService {
         return dto;
     }
 
+    /**
+     * Обновляет информацию о событии пользователя.
+     * Разрешает редактирование только для событий в статусе PENDING или CANCELED.
+     * Обновляет только те поля, которые указаны в запросе.
+     *
+     * @param context контекст обновления с данными запроса, userId и eventId
+     * @return полное DTO обновленного события
+     * @throws NotFoundException если событие не найдено или категория не существует
+     * @throws ConflictException если событие опубликовано или дата некорректна
+     */
     @Override
     @Transactional
     public EventFullDto updateEvent(UpdateEventContext context) {
@@ -160,6 +210,15 @@ public class EventServiceImpl implements EventService {
     }
 
 
+    /**
+     * Получает список событий с фильтрацией по параметрам администратора.
+     * Поддерживает фильтрацию по пользователям, состояниям, категориям и датам.
+     * Загружает количество подтвержденных заявок для каждого события.
+     *
+     * @param request параметры поиска и фильтрации событий
+     * @return список полных DTO событий
+     * @throws BadRequestException если параметр size некорректен
+     */
     @Override
     @Transactional(readOnly = true)
     public List<EventFullDto> adminGetEvents(AdminParamSearch request) {
@@ -211,6 +270,17 @@ public class EventServiceImpl implements EventService {
                 .toList();
     }
 
+    /**
+     * Обновляет информацию о событии от имени администратора.
+     * Позволяет публиковать и отклонять события с проверкой текущего статуса.
+     * Обновляет только те поля, которые указаны в запросе.
+     *
+     * @param eventId идентификатор события
+     * @param request данные для обновления события
+     * @return полное DTO обновленного события
+     * @throws NotFoundException если событие или категория не найдены
+     * @throws ConflictException если статус события не позволяет выполнить действие
+     */
     @Override
     @Transactional
     public EventFullDto adminUpdateEvent(Long eventId, UpdateEventAdminRequest request) {
@@ -281,6 +351,15 @@ public class EventServiceImpl implements EventService {
         return EventMapper.toDto(event);
     }
 
+    /**
+     * Получает список опубликованных событий с публичным доступом.
+     * Поддерживает фильтрацию по тексту, категориям, платности, датам и доступности мест.
+     * Загружает статистику просмотров и количество подтвержденных заявок.
+     *
+     * @param request параметры поиска и фильтрации событий
+     * @return список кратких DTO событий
+     * @throws BadRequestException если параметр size некорректен
+     */
     @Override
     @Transactional(readOnly = true)
     public List<EventShortDto> getPublicEvents(PublicParamSearch request) {
@@ -355,6 +434,15 @@ public class EventServiceImpl implements EventService {
         return dtos;
     }
 
+    /**
+     * Получает полную информацию о конкретном опубликованном событии.
+     * Фиксирует статистику просмотров события и загружает количество подтвержденных заявок.
+     *
+     * @param eventId        идентификатор события
+     * @param servletRequest HTTP запрос для фиксации статистики
+     * @return полное DTO события
+     * @throws NotFoundException если событие не найдено или не опубликовано
+     */
     @Override
     @Transactional(readOnly = true)
     public EventFullDto getPublicEventId(Long eventId, HttpServletRequest servletRequest) {
@@ -387,6 +475,14 @@ public class EventServiceImpl implements EventService {
         return dto;
     }
 
+    /**
+     * Парсит строку даты в LocalDateTime или возвращает null.
+     * Ожидает формат yyyy-MM-dd HH:mm:ss.
+     *
+     * @param value строка с датой или null
+     * @return распарсенная дата или null
+     * @throws BadRequestException если формат даты некорректен
+     */
     private LocalDateTime parseDateOrNull(String value) {
         if (value == null || value.isBlank()) {
             return null;

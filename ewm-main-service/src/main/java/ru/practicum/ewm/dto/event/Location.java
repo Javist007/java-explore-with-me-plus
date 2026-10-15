@@ -7,6 +7,10 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+/**
+ * DTO для хранения географических координат местоположения.
+ * Используется как встраиваемый объект для хранения широты и долготы.
+ */
 @Data
 @Builder
 @NoArgsConstructor
@@ -14,9 +18,15 @@ import lombok.NoArgsConstructor;
 @Embeddable
 public class Location {
 
+    /**
+     * Широта местоположения.
+     */
     @JsonProperty("lat")
     private Float lat;
 
+    /**
+     * Долгота местоположения.
+     */
     @JsonProperty("lon")
     private Float lon;
 }

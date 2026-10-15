@@ -2,6 +2,7 @@ package ru.practicum.ewm.service.mapper;
 
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
+import ru.practicum.ewm.common.DateTimeConstants;
 import ru.practicum.ewm.dto.event.request.NewEventRequest;
 import ru.practicum.ewm.dto.event.response.EventFullDto;
 import ru.practicum.ewm.dto.event.response.EventShortDto;
@@ -11,7 +12,6 @@ import ru.practicum.ewm.model.EventState;
 import ru.practicum.ewm.model.User;
 
 import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
 
 /**
  * Класс для преобразования объектов Event и EventDto.
@@ -19,13 +19,16 @@ import java.time.format.DateTimeFormatter;
 @NoArgsConstructor(access = AccessLevel.PRIVATE)
 public final class EventMapper {
 
-    private static final DateTimeFormatter FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
-
     /**
      * Преобразует запрос на создание события в сущность.
+     *
+     * @param request   запрос на создание события
+     * @param initiator пользователь-инициатор события
+     * @param category  категория события
+     * @return сущность события
      */
     public static Event toEntity(NewEventRequest request, User initiator, Category category) {
-        LocalDateTime eventDate = LocalDateTime.parse(request.getEventDate(), FORMATTER);
+        LocalDateTime eventDate = LocalDateTime.parse(request.getEventDate(), DateTimeConstants.FORMATTER);
         return Event.builder()
                 .annotation(request.getAnnotation())
                 .category(category)
@@ -45,7 +48,10 @@ public final class EventMapper {
     }
 
     /**
-     * Преобразует сущность в DTO.
+     * Преобразует сущность в полное DTO.
+     *
+     * @param event сущность события
+     * @return полное DTO события
      */
     public static EventFullDto toDto(Event event) {
         return EventFullDto.builder()
@@ -56,9 +62,9 @@ public final class EventMapper {
                         .name(event.getCategory().getName())
                         .build())
                 .confirmedRequests(event.getConfirmedRequests())
-                .createdOn(event.getCreatedOn().format(FORMATTER))
+                .createdOn(event.getCreatedOn().format(DateTimeConstants.FORMATTER))
                 .description(event.getDescription())
-                .eventDate(event.getEventDate().format(FORMATTER))
+                .eventDate(event.getEventDate().format(DateTimeConstants.FORMATTER))
                 .initiator(EventFullDto.UserShortDto.builder()
                         .id(event.getInitiator().getId())
                         .name(event.getInitiator().getName())
@@ -66,7 +72,7 @@ public final class EventMapper {
                 .location(event.getLocation())
                 .paid(event.getPaid())
                 .participantLimit(event.getParticipantLimit())
-                .publishedOn(event.getPublishedOn() != null ? event.getPublishedOn().format(FORMATTER) : null)
+                .publishedOn(event.getPublishedOn() != null ? event.getPublishedOn().format(DateTimeConstants.FORMATTER) : null)
                 .requestModeration(event.getRequestModeration())
                 .state(event.getState().name())
                 .title(event.getTitle())
@@ -76,6 +82,9 @@ public final class EventMapper {
 
     /**
      * Преобразует сущность в краткое DTO.
+     *
+     * @param event сущность события
+     * @return краткое DTO события
      */
     public static EventShortDto toShortDto(Event event) {
         return EventShortDto.builder()
@@ -86,7 +95,7 @@ public final class EventMapper {
                         .name(event.getCategory().getName())
                         .build())
                 .confirmedRequests(event.getConfirmedRequests())
-                .eventDate(event.getEventDate().format(FORMATTER))
+                .eventDate(event.getEventDate().format(DateTimeConstants.FORMATTER))
                 .initiator(EventShortDto.UserShortDto.builder()
                         .id(event.getInitiator().getId())
                         .name(event.getInitiator().getName())

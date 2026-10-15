@@ -15,13 +15,7 @@ import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
 import ru.practicum.ewm.dto.event.Location;
-import ru.practicum.ewm.dto.event.request.AdminParamSearch;
-import ru.practicum.ewm.dto.event.request.EventSearchRequest;
-import ru.practicum.ewm.dto.event.request.NewEventRequest;
-import ru.practicum.ewm.dto.event.request.PublicParamSearch;
-import ru.practicum.ewm.dto.event.request.UpdateEventAdminRequest;
-import ru.practicum.ewm.dto.event.request.UpdateEventContext;
-import ru.practicum.ewm.dto.event.request.UpdateEventRequest;
+import ru.practicum.ewm.dto.event.request.*;
 import ru.practicum.ewm.dto.event.response.EventFullDto;
 import ru.practicum.ewm.dto.event.response.EventShortDto;
 import ru.practicum.ewm.exception.model.BadRequestException;
@@ -47,14 +41,8 @@ import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyBoolean;
-import static org.mockito.ArgumentMatchers.anyCollection;
-import static org.mockito.ArgumentMatchers.anyList;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
+import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.Mockito.*;
 
 /**
  * Юнит-тесты сервиса событий: бизнес-правила, валидация дат,
@@ -87,12 +75,23 @@ class EventServiceImplUnitTest {
     private User user;
     private Category category;
 
+    /**
+     * Инициализирует тестовые данные перед выполнением каждого теста.
+     * Создает тестового пользователя и категорию.
+     */
     @BeforeEach
     void setUp() {
         user = User.builder().id(USER_ID).name("Иван").email("ivan@test.ru").build();
         category = Category.builder().id(CATEGORY_ID).name("Кино").build();
     }
 
+    /**
+     * Создает тестовую сущность события с указанными параметрами.
+     *
+     * @param id    идентификатор события
+     * @param state статус события
+     * @return сущность события для тестов
+     */
     private Event event(Long id, EventState state) {
         return Event.builder()
                 .id(id)
@@ -113,6 +112,12 @@ class EventServiceImplUnitTest {
                 .build();
     }
 
+    /**
+     * Создает тестовый запрос на создание события с указанной датой.
+     *
+     * @param date дата проведения события в формате yyyy-MM-dd HH:mm:ss
+     * @return запрос на создание события для тестов
+     */
     private NewEventRequest newEventRequest(String date) {
         return NewEventRequest.builder()
                 .annotation("Аннотация события для тестов, достаточной длины")

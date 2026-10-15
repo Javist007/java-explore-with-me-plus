@@ -51,6 +51,10 @@ class PrivateEventControllerIntegrationTest {
     private Long userId;
     private Long categoryId;
 
+    /**
+     * Инициализирует тестовые данные перед выполнением каждого теста.
+     * Создает тестового пользователя и категорию в базе данных.
+     */
     @BeforeEach
     void setUp() {
         User user = User.builder().name("Тест").email("integration@test.ru").build();
@@ -64,6 +68,12 @@ class PrivateEventControllerIntegrationTest {
         em.flush();
     }
 
+    /**
+     * Создает валидный запрос на создание события с указанной датой.
+     *
+     * @param date дата проведения события в формате yyyy-MM-dd HH:mm:ss
+     * @return валидный NewEventRequest
+     */
     private NewEventRequest validRequest(String date) {
         return NewEventRequest.builder()
                 .annotation("Аннотация для интеграционного теста достаточной длины")
@@ -78,6 +88,11 @@ class PrivateEventControllerIntegrationTest {
                 .build();
     }
 
+    /**
+     * Тестирует успешное создание события.
+     * Проверяет, что возвращается статус 201, событие имеет статус PENDING
+     * и корректные данные инициатора и категории.
+     */
     @Test
     @DisplayName("POST /users/{id}/events возвращает 201 и EventFullDto со state=PENDING")
     void createEventReturnsFullDto() throws Exception {
@@ -94,6 +109,11 @@ class PrivateEventControllerIntegrationTest {
                 .andExpect(jsonPath("$.category.id").value(categoryId));
     }
 
+    /**
+     * Тестирует валидацию даты события.
+     * Проверяет, что попытка создать событие с датой раньше чем через 2 часа
+     * возвращает ошибку 409 Conflict.
+     */
     @Test
     @DisplayName("POST с датой раньше 2 часов -> 409 Conflict")
     void createEventTooSoonReturns409() throws Exception {
@@ -105,6 +125,11 @@ class PrivateEventControllerIntegrationTest {
                 .andExpect(status().isConflict());
     }
 
+    /**
+     * Тестирует обработку неверного формата даты.
+     * Проверяет, что при неверном формате даты возвращается 400 Bad Request,
+     * а не 500 Internal Server Error.
+     */
     @Test
     @DisplayName("POST с неверным форматом eventDate -> 400, а не 500")
     void createEventBadDateFormatReturns400() throws Exception {
@@ -114,6 +139,11 @@ class PrivateEventControllerIntegrationTest {
                 .andExpect(status().isBadRequest());
     }
 
+    /**
+     * Тестирует обработку несуществующего пользователя.
+     * Проверяет, что попытка создать событие от имени несуществующего пользователя
+     * возвращает ошибку 404 Not Found.
+     */
     @Test
     @DisplayName("POST с несуществующим пользователем -> 404")
     void createEventUnknownUserReturns404() throws Exception {
@@ -125,6 +155,11 @@ class PrivateEventControllerIntegrationTest {
                 .andExpect(status().isNotFound());
     }
 
+    /**
+     * Тестирует валидацию длины аннотации.
+     * Проверяет, что аннотация короче 20 символов вызывает ошибку 400 Bad Request
+     * на уровне Bean Validation.
+     */
     @Test
     @DisplayName("POST с короткой аннотацией (<20 символов) -> 400 Bean Validation")
     void createEventShortAnnotationReturns400() throws Exception {
@@ -138,6 +173,11 @@ class PrivateEventControllerIntegrationTest {
                 .andExpect(status().isBadRequest());
     }
 
+    /**
+     * Тестирует получение списка событий пользователя.
+     * Проверяет, что возвращается список событий пользователя
+     * с корректным количеством подтвержденных заявок.
+     */
     @Test
     @DisplayName("GET /users/{id}/events возвращает список своих событий (confirmedRequests=0 из RequestService)")
     void getOwnEventsReturnsList() throws Exception {
@@ -152,6 +192,11 @@ class PrivateEventControllerIntegrationTest {
                 .andExpect(jsonPath("$[0].confirmedRequests").value(0));
     }
 
+    /**
+     * Тестирует проверку владельца события.
+     * Проверяет, что попытка получить событие другого пользователя
+     * возвращает ошибку 404 Not Found.
+     */
     @Test
     @DisplayName("GET чужого события -> 404 (проверка владельца работает насквозь)")
     void getForeignEventReturns404() throws Exception {
@@ -170,6 +215,11 @@ class PrivateEventControllerIntegrationTest {
                 .andExpect(status().isNotFound());
     }
 
+    /**
+     * Тестирует публичный поиск событий.
+     * Проверяет, что события в статусе PENDING не видны в публичном поиске
+     * и что контекст приложения стартует без конфликтов маппингов.
+     */
     @Test
     @DisplayName("GET /events публичный: созданное PENDING-событие не виден, контекст стартует без конфликта маппингов")
     void publicSearchHidesPendingEvents() throws Exception {

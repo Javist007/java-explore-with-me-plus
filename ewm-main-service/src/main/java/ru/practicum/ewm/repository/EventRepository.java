@@ -9,8 +9,20 @@ import ru.practicum.ewm.model.Event;
 import java.util.List;
 import java.util.Optional;
 
+/**
+ * Репозиторий для работы с сущностями событий.
+ * Предоставляет методы для поиска, фильтрации и проверки существования событий.
+ */
 public interface EventRepository extends JpaRepository<Event, Long>, JpaSpecificationExecutor<Event> {
 
+    /**
+     * Находит все события указанного инициатора с пагинацией.
+     *
+     * @param userId идентификатор пользователя-инициатора
+     * @param from   индекс первого элемента для пагинации
+     * @param size   количество элементов на странице
+     * @return список событий инициатора
+     */
     @Query("SELECT e FROM Event e " +
             "WHERE e.initiator.id = :userId " +
             "ORDER BY e.id DESC " +
@@ -20,6 +32,13 @@ public interface EventRepository extends JpaRepository<Event, Long>, JpaSpecific
             @Param("from") int from,
             @Param("size") int size);
 
+    /**
+     * Находит событие по идентификатору инициатора и идентификатору события.
+     *
+     * @param initiatorId идентификатор инициатора события
+     * @param eventId     идентификатор события
+     * @return Optional с найденным событием или пустой, если не найдено
+     */
     Optional<Event> findByInitiatorIdAndId(Long initiatorId, Long eventId);
 
 

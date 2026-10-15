@@ -15,6 +15,10 @@ import ru.practicum.ewm.service.EventService;
 
 import java.util.List;
 
+/**
+ * Контроллер для частных пользователей по управлению своими событиями.
+ * Предоставляет эндпоинты для создания, просмотра и обновления событий пользователя.
+ */
 @RestController
 @Validated
 @RequestMapping("/users/{userId}/events")
@@ -23,13 +27,26 @@ public class PrivateEventController {
 
     private final EventService eventService;
 
+    /**
+     * Создает новое событие от имени пользователя.
+     *
+     * @param userId  идентификатор пользователя-инициатора
+     * @param request данные для создания события
+     * @return полное DTO созданного события
+     */
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-
     public EventFullDto createEvent(@PathVariable Long userId, @RequestBody @Valid NewEventRequest request) {
         return eventService.createEvent(request, userId);
     }
 
+    /**
+     * Получает список событий пользователя с возможностью фильтрации.
+     *
+     * @param userId  идентификатор пользователя
+     * @param request параметры поиска и фильтрации событий
+     * @return список кратких DTO событий пользователя
+     */
     @GetMapping
     @ResponseStatus(HttpStatus.OK)
     public List<EventShortDto> getEvents(@PathVariable Long userId, @ModelAttribute @Valid EventSearchRequest request) {
@@ -42,6 +59,14 @@ public class PrivateEventController {
         return eventService.getEventsUser(userId, eventId);
     }
 
+    /**
+     * Обновляет информацию о событии пользователя.
+     *
+     * @param userId  идентификатор пользователя
+     * @param eventId идентификатор события
+     * @param request данные для обновления события
+     * @return полное DTO обновленного события
+     */
     @PatchMapping("/{eventId}")
     @ResponseStatus(HttpStatus.OK)
     public EventFullDto updateEvent(@PathVariable Long userId, @PathVariable Long eventId, @RequestBody @Valid UpdateEventRequest request) {
