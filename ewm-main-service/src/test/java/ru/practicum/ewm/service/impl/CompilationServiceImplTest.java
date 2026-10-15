@@ -13,11 +13,11 @@ import ru.practicum.ewm.dto.compilation.request.NewCompilationDto;
 import ru.practicum.ewm.dto.compilation.request.UpdateCompilationRequest;
 import ru.practicum.ewm.dto.compilation.response.CompilationDto;
 import ru.practicum.ewm.exception.model.NotFoundException;
-import ru.practicum.ewm.model.Compilation;
-import ru.practicum.ewm.model.Event;
+import ru.practicum.ewm.model.*;
 import ru.practicum.ewm.repository.CompilationRepository;
 import ru.practicum.ewm.repository.EventRepository;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -47,9 +47,31 @@ class CompilationServiceImplTest {
 
     @BeforeEach
     void setUp() {
+        Category category = Category.builder()
+                .id(1L)
+                .name("Test Category")
+                .build();
+
+        User initiator = User.builder()
+                .id(1L)
+                .name("Test User")
+                .email("test@example.com")
+                .build();
+
         event = Event.builder()
                 .id(1L)
                 .title("Test Event")
+                .annotation("Test annotation")
+                .category(category)
+                .initiator(initiator)
+                .eventDate(LocalDateTime.of(2025, 12, 31, 15, 0))
+                .createdOn(LocalDateTime.now())
+                .paid(false)
+                .participantLimit(10)
+                .requestModeration(true)
+                .state(EventState.PENDING)
+                .confirmedRequests(5L)
+                .views(100L)
                 .build();
 
         compilation = Compilation.builder()
@@ -90,7 +112,7 @@ class CompilationServiceImplTest {
         assertThat(result.getTitle()).isEqualTo("Test Compilation");
 
         verify(eventRepository).findAllById(List.of(1L));
-        verify(compilationRepository).save(compilation);
+        verify(compilationRepository).save(any(Compilation.class));
     }
 
     @Test

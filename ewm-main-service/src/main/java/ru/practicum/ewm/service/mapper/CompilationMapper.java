@@ -3,7 +3,7 @@ package ru.practicum.ewm.service.mapper;
 import ru.practicum.ewm.dto.compilation.request.NewCompilationDto;
 import ru.practicum.ewm.dto.compilation.request.UpdateCompilationRequest;
 import ru.practicum.ewm.dto.compilation.response.CompilationDto;
-import ru.practicum.ewm.dto.event.EventShortDto;
+import ru.practicum.ewm.dto.event.response.EventShortDto;
 import ru.practicum.ewm.model.Compilation;
 import ru.practicum.ewm.model.Event;
 
