@@ -9,6 +9,8 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import ru.practicum.ewm.dto.compilation.request.NewCompilationDto;
 import ru.practicum.ewm.dto.compilation.request.UpdateCompilationRequest;
 import ru.practicum.ewm.dto.compilation.response.CompilationDto;
@@ -16,15 +18,22 @@ import ru.practicum.ewm.exception.model.NotFoundException;
 import ru.practicum.ewm.model.*;
 import ru.practicum.ewm.repository.CompilationRepository;
 import ru.practicum.ewm.repository.EventRepository;
+import ru.practicum.ewm.service.RequestService;
+import ru.practicum.stats.client.StatClient;
+import ru.practicum.stats.dto.ViewStatsDto;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
+import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -36,14 +45,21 @@ class CompilationServiceImplTest {
     @Mock
     private EventRepository eventRepository;
 
+    @Mock
+    private RequestService requestService;
+
+    @Mock
+    private StatClient statClient;
+
     @InjectMocks
     private CompilationServiceImpl compilationService;
 
     private Compilation compilation;
-    private CompilationDto compilationDto;
     private NewCompilationDto newCompilationDto;
     private UpdateCompilationRequest updateRequest;
     private Event event;
+    private ViewStatsDto viewStatsDto;
+    private Pageable pageable;
 
     @BeforeEach
     void setUp() {
@@ -70,8 +86,6 @@ class CompilationServiceImplTest {
                 .participantLimit(10)
                 .requestModeration(true)
                 .state(EventState.PENDING)
-                .confirmedRequests(5L)
-                .views(100L)
                 .build();
 
         compilation = Compilation.builder()
@@ -79,13 +93,6 @@ class CompilationServiceImplTest {
                 .title("Test Compilation")
                 .pinned(false)
                 .events(Set.of(event))
-                .build();
-
-        compilationDto = CompilationDto.builder()
-                .id(1L)
-                .title("Test Compilation")
-                .pinned(false)
-                .events(List.of())
                 .build();
 
         newCompilationDto = NewCompilationDto.builder()
@@ -98,6 +105,19 @@ class CompilationServiceImplTest {
                 .title("Updated Compilation")
                 .pinned(true)
                 .build();
+
+        viewStatsDto = ViewStatsDto.builder()
+                .uri("/events/1")
+                .hits(100L)
+                .build();
+
+        pageable = PageRequest.of(0, 10, Sort.by(Sort.Direction.ASC, "id"));
+    }
+
+    private void mockStatsServices() {
+        when(requestService.getConfirmedRequestsCount(anyList())).thenReturn(Map.of(1L, 5L));
+        when(statClient.getStats(any(LocalDateTime.class), any(LocalDateTime.class), anyList(), anyBoolean()))
+                .thenReturn(List.of(viewStatsDto));
     }
 
     @Test
@@ -105,14 +125,20 @@ class CompilationServiceImplTest {
     void save_ShouldCreateCompilationSuccessfully() {
         when(eventRepository.findAllById(List.of(1L))).thenReturn(List.of(event));
         when(compilationRepository.save(any(Compilation.class))).thenReturn(compilation);
+        when(compilationRepository.findByIdWithEvents(1L)).thenReturn(Optional.of(compilation));
+        mockStatsServices();
 
         CompilationDto result = compilationService.save(newCompilationDto);
 
         assertThat(result).isNotNull();
         assertThat(result.getTitle()).isEqualTo("Test Compilation");
+        assertThat(result.getEvents()).hasSize(1);
+        assertThat(result.getEvents().get(0).getViews()).isEqualTo(100L);
+        assertThat(result.getEvents().get(0).getConfirmedRequests()).isEqualTo(5L);
 
         verify(eventRepository).findAllById(List.of(1L));
         verify(compilationRepository).save(any(Compilation.class));
+        verify(compilationRepository).findByIdWithEvents(1L);
     }
 
     @Test
@@ -123,13 +149,22 @@ class CompilationServiceImplTest {
                 .pinned(false)
                 .build();
 
-        when(compilationRepository.save(any(Compilation.class))).thenReturn(compilation);
+        Compilation emptyCompilation = Compilation.builder()
+                .id(2L)
+                .title("Empty Compilation")
+                .pinned(false)
+                .events(Set.of())
+                .build();
+
+        when(compilationRepository.save(any(Compilation.class))).thenReturn(emptyCompilation);
+        when(compilationRepository.findByIdWithEvents(2L)).thenReturn(Optional.of(emptyCompilation));
 
         CompilationDto result = compilationService.save(dtoWithoutEvents);
 
         assertThat(result).isNotNull();
+        assertThat(result.getEvents()).isEmpty();
         verify(eventRepository, never()).findAllById(anyList());
-        verify(compilationRepository).save(any(Compilation.class));
+        verify(compilationRepository).findByIdWithEvents(2L);
     }
 
     @Test
@@ -137,12 +172,15 @@ class CompilationServiceImplTest {
     void update_ShouldUpdateCompilationSuccessfully() {
         when(compilationRepository.findById(1L)).thenReturn(Optional.of(compilation));
         when(compilationRepository.save(any(Compilation.class))).thenReturn(compilation);
+        when(compilationRepository.findByIdWithEvents(1L)).thenReturn(Optional.of(compilation));
+        mockStatsServices();
 
         CompilationDto result = compilationService.update(1L, updateRequest);
 
         assertThat(result).isNotNull();
         verify(compilationRepository).findById(1L);
-        verify(compilationRepository).save(compilation);
+        verify(compilationRepository).save(any(Compilation.class));
+        verify(compilationRepository).findByIdWithEvents(1L);
     }
 
     @Test
@@ -155,6 +193,24 @@ class CompilationServiceImplTest {
                 .hasMessageContaining("Compilation with id=999 was not found");
 
         verify(compilationRepository).findById(999L);
+        verify(compilationRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("Должен выбросить NotFoundException при обновлении с несуществующими событиями")
+    void update_ShouldThrowNotFoundException_WhenEventsNotFound() {
+        when(compilationRepository.findById(1L)).thenReturn(Optional.of(compilation));
+        when(eventRepository.findAllById(List.of(999L))).thenReturn(List.of());
+
+        UpdateCompilationRequest requestWithMissingEvents = UpdateCompilationRequest.builder()
+                .events(List.of(999L))
+                .build();
+
+        assertThatThrownBy(() -> compilationService.update(1L, requestWithMissingEvents))
+                .isInstanceOf(NotFoundException.class)
+                .hasMessageContaining("Events with ids [999] were not found");
+
+        verify(eventRepository).findAllById(List.of(999L));
         verify(compilationRepository, never()).save(any());
     }
 
@@ -185,54 +241,61 @@ class CompilationServiceImplTest {
     @Test
     @DisplayName("Должен получить список подборок с фильтрацией по pinned")
     void getAll_ShouldReturnFilteredCompilations_WhenPinnedIsNotNull() {
-        when(compilationRepository.findAllByPinned(eq(true), any(PageRequest.class)))
-                .thenReturn(List.of(compilation));
+        when(compilationRepository.findAllByPinnedWithEvents(eq(true), any(Pageable.class)))
+                .thenReturn(new PageImpl<>(List.of(compilation)));
+        mockStatsServices();
 
-        List<CompilationDto> result = compilationService.getAll(true, 0, 10);
+        List<CompilationDto> result = compilationService.getAll(true, pageable);
 
         assertThat(result).hasSize(1);
         assertThat(result.get(0).getTitle()).isEqualTo("Test Compilation");
+        assertThat(result.get(0).getEvents()).hasSize(1);
 
-        verify(compilationRepository).findAllByPinned(eq(true), any(PageRequest.class));
+        verify(compilationRepository).findAllByPinnedWithEvents(eq(true), any(Pageable.class));
     }
 
     @Test
     @DisplayName("Должен получить все подборки когда pinned равен null")
     void getAll_ShouldReturnAllCompilations_WhenPinnedIsNull() {
-        when(compilationRepository.findAll(any(PageRequest.class)))
+        when(compilationRepository.findAllWithEvents(any(Pageable.class)))
                 .thenReturn(new PageImpl<>(List.of(compilation)));
+        mockStatsServices();
 
-        List<CompilationDto> result = compilationService.getAll(null, 0, 10);
+        List<CompilationDto> result = compilationService.getAll(null, pageable);
 
         assertThat(result).hasSize(1);
-        verify(compilationRepository).findAll(any(PageRequest.class));
-        verify(compilationRepository, never()).findAllByPinned(any(), any());
+        verify(compilationRepository).findAllWithEvents(any(Pageable.class));
+        verify(compilationRepository, never()).findAllByPinnedWithEvents(any(), any());
     }
 
     @Test
     @DisplayName("Должен получить подборку по ID")
     void getById_ShouldReturnCompilation_WhenExists() {
-        when(compilationRepository.findById(1L)).thenReturn(Optional.of(compilation));
+        when(compilationRepository.findByIdWithEvents(1L)).thenReturn(Optional.of(compilation));
+        mockStatsServices();
 
         CompilationDto result = compilationService.getById(1L);
 
         assertThat(result).isNotNull();
         assertThat(result.getId()).isEqualTo(1L);
         assertThat(result.getTitle()).isEqualTo("Test Compilation");
+        assertThat(result.getEvents()).hasSize(1);
+        assertThat(result.getEvents().get(0).getViews()).isEqualTo(100L);
+        assertThat(result.getEvents().get(0).getConfirmedRequests()).isEqualTo(5L);
 
-        verify(compilationRepository).findById(1L);
+        verify(compilationRepository).findByIdWithEvents(1L);
     }
 
     @Test
     @DisplayName("Должен выбросить NotFoundException при получении несуществующей подборки")
     void getById_ShouldThrowNotFoundException_WhenCompilationNotFound() {
-        when(compilationRepository.findById(999L)).thenReturn(Optional.empty());
+        when(compilationRepository.findByIdWithEvents(999L)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> compilationService.getById(999L))
                 .isInstanceOf(NotFoundException.class)
                 .hasMessageContaining("Compilation with id=999 was not found");
 
-        verify(compilationRepository).findById(999L);
+        verify(compilationRepository).findByIdWithEvents(999L);
     }
 
     @Test
@@ -244,11 +307,39 @@ class CompilationServiceImplTest {
                 .events(List.of())
                 .build();
 
-        when(compilationRepository.save(any(Compilation.class))).thenReturn(compilation);
+        Compilation emptyCompilation = Compilation.builder()
+                .id(3L)
+                .title("Empty List Compilation")
+                .pinned(false)
+                .events(Set.of())
+                .build();
+
+        when(compilationRepository.save(any(Compilation.class))).thenReturn(emptyCompilation);
+        when(compilationRepository.findByIdWithEvents(3L)).thenReturn(Optional.of(emptyCompilation));
 
         CompilationDto result = compilationService.save(dtoWithEmptyEvents);
 
         assertThat(result).isNotNull();
+        assertThat(result.getEvents()).isEmpty();
         verify(eventRepository, never()).findAllById(anyList());
+        verify(compilationRepository).findByIdWithEvents(3L);
+    }
+
+    @Test
+    @DisplayName("Должен выбросить NotFoundException при создании с несуществующими событиями")
+    void save_ShouldThrowNotFoundException_WhenEventsNotFound() {
+        when(eventRepository.findAllById(List.of(999L))).thenReturn(List.of());
+
+        NewCompilationDto dtoWithMissingEvents = NewCompilationDto.builder()
+                .title("Compilation with missing events")
+                .events(List.of(999L))
+                .build();
+
+        assertThatThrownBy(() -> compilationService.save(dtoWithMissingEvents))
+                .isInstanceOf(NotFoundException.class)
+                .hasMessageContaining("Events with ids [999] were not found");
+
+        verify(eventRepository).findAllById(List.of(999L));
+        verify(compilationRepository, never()).save(any());
     }
 }

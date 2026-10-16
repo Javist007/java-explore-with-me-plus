@@ -1,5 +1,6 @@
 package ru.practicum.ewm.service;
 
+import org.springframework.data.domain.Pageable;
 import ru.practicum.ewm.dto.compilation.request.NewCompilationDto;
 import ru.practicum.ewm.dto.compilation.request.UpdateCompilationRequest;
 import ru.practicum.ewm.dto.compilation.response.CompilationDto;
@@ -29,7 +30,7 @@ public interface CompilationService {
     /**
      * Получение списка подборок с фильтрацией по pinned и пагинацией.
      */
-    List<CompilationDto> getAll(Boolean pinned, Integer from, Integer size);
+    List<CompilationDto> getAll(Boolean pinned, Pageable pageable);
 
     /**
      * Получение подборки по ID.

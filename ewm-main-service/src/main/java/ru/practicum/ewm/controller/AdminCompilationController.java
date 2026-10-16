@@ -1,8 +1,10 @@
 package ru.practicum.ewm.controller;
 
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Positive;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 import ru.practicum.ewm.dto.compilation.request.NewCompilationDto;
 import ru.practicum.ewm.dto.compilation.request.UpdateCompilationRequest;
@@ -15,6 +17,7 @@ import ru.practicum.ewm.service.CompilationService;
 @RestController
 @RequestMapping("/admin/compilations")
 @RequiredArgsConstructor
+@Validated
 public class AdminCompilationController {
 
     private final CompilationService compilationService;
@@ -33,7 +36,7 @@ public class AdminCompilationController {
      */
     @PatchMapping("/{compId}")
     public CompilationDto update(
-            @PathVariable Long compId,
+            @PathVariable @Positive Long compId,
             @Valid @RequestBody UpdateCompilationRequest request) {
         return compilationService.update(compId, request);
     }
@@ -43,7 +46,7 @@ public class AdminCompilationController {
      */
     @DeleteMapping("/{compId}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    public void delete(@PathVariable Long compId) {
+    public void delete(@PathVariable @Positive Long compId) {
         compilationService.delete(compId);
     }
 }

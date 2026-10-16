@@ -9,6 +9,8 @@ import ru.practicum.ewm.model.Event;
 
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 /**
@@ -20,7 +22,8 @@ public final class CompilationMapper {
     }
 
     /**
-     * Преобразует Compilation Entity в CompilationDto.
+     * Преобразует Compilation Entity в CompilationDto без статистики.
+     * Используется только если статистика уже не нужна (например, в тестах).
      */
     public static CompilationDto toDto(Compilation compilation) {
         if (compilation == null) {
@@ -40,11 +43,34 @@ public final class CompilationMapper {
     }
 
     /**
-     * Преобразует список Compilation в список CompilationDto.
+     * Преобразует Compilation Entity в CompilationDto, используя готовую карту
+     * событий со статистикой (views и confirmedRequests).
      */
-    public static List<CompilationDto> toDtoList(List<Compilation> compilations) {
+    public static CompilationDto toDtoWithStats(Compilation compilation, Map<Long, EventShortDto> eventsWithStats) {
+        if (compilation == null) {
+            return null;
+        }
+
+        List<EventShortDto> eventDtos = compilation.getEvents().stream()
+                .map(event -> eventsWithStats.get(event.getId()))
+                .filter(Objects::nonNull)
+                .collect(Collectors.toList());
+
+        return CompilationDto.builder()
+                .id(compilation.getId())
+                .title(compilation.getTitle())
+                .pinned(compilation.getPinned())
+                .events(eventDtos)
+                .build();
+    }
+
+    /**
+     * Преобразует список Compilation в список CompilationDto,
+     * используя готовую карту событий со статистикой.
+     */
+    public static List<CompilationDto> toDtoList(List<Compilation> compilations, Map<Long, EventShortDto> eventsWithStats) {
         return compilations.stream()
-                .map(CompilationMapper::toDto)
+                .map(c -> toDtoWithStats(c, eventsWithStats))
                 .collect(Collectors.toList());
     }
 
