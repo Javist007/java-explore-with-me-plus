@@ -1,7 +1,6 @@
 package ru.practicum.ewm.service.impl;
 
 import lombok.RequiredArgsConstructor;
-import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -15,17 +14,12 @@ import ru.practicum.ewm.model.Event;
 import ru.practicum.ewm.repository.CompilationRepository;
 import ru.practicum.ewm.repository.EventRepository;
 import ru.practicum.ewm.service.CompilationService;
-import ru.practicum.ewm.service.RequestService;
+import ru.practicum.ewm.service.EventService;
 import ru.practicum.ewm.service.mapper.CompilationMapper;
-import ru.practicum.ewm.service.mapper.EventMapper;
-import ru.practicum.stats.client.StatClient;
-import ru.practicum.stats.dto.ViewStatsDto;
 
-import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /**
@@ -38,11 +32,7 @@ public class CompilationServiceImpl implements CompilationService {
 
     private final CompilationRepository compilationRepository;
     private final EventRepository eventRepository;
-    private final RequestService requestService;
-    private final StatClient statClient;
-
-    private static final String EVENT_URI_PREFIX = "/events/";
-    private static final LocalDateTime STATS_START = LocalDateTime.of(2020, 1, 1, 0, 0);
+    private final EventService eventService;
 
     @Override
     @Transactional
@@ -55,7 +45,8 @@ public class CompilationServiceImpl implements CompilationService {
                 .orElseThrow(() -> new NotFoundException(
                         String.format("Compilation with id=%d was not found", saved.getId())));
 
-        Map<Long, EventShortDto> stats = buildEventsWithStats(savedWithEvents.getEvents().stream().toList());
+        Map<Long, EventShortDto> stats = eventService.getEventsWithStats(
+                savedWithEvents.getEvents().stream().toList());
         return CompilationMapper.toDtoWithStats(savedWithEvents, stats);
     }
 
@@ -78,7 +69,8 @@ public class CompilationServiceImpl implements CompilationService {
                 .orElseThrow(() -> new NotFoundException(
                         String.format("Compilation with id=%d was not found", compId)));
 
-        Map<Long, EventShortDto> stats = buildEventsWithStats(updated.getEvents().stream().toList());
+        Map<Long, EventShortDto> stats = eventService.getEventsWithStats(
+                updated.getEvents().stream().toList());
         return CompilationMapper.toDtoWithStats(updated, stats);
     }
 
@@ -94,21 +86,25 @@ public class CompilationServiceImpl implements CompilationService {
 
     @Override
     public List<CompilationDto> getAll(Boolean pinned, Pageable pageable) {
-        Page<Compilation> page;
+        List<Long> ids;
         if (pinned != null) {
-            page = compilationRepository.findAllByPinnedWithEvents(pinned, pageable);
+            ids = compilationRepository.findIdsByPinned(pinned, pageable);
         } else {
-            page = compilationRepository.findAllWithEvents(pageable);
+            ids = compilationRepository.findAllIds(pageable);
         }
 
-        List<Compilation> compilations = page.getContent();
+        if (ids.isEmpty()) {
+            return List.of();
+        }
+
+        List<Compilation> compilations = compilationRepository.findByIdsWithEvents(ids);
 
         List<Event> allEvents = compilations.stream()
                 .flatMap(c -> c.getEvents().stream())
                 .distinct()
                 .toList();
 
-        Map<Long, EventShortDto> eventsWithStats = buildEventsWithStats(allEvents);
+        Map<Long, EventShortDto> eventsWithStats = eventService.getEventsWithStats(allEvents);
 
         return CompilationMapper.toDtoList(compilations, eventsWithStats);
     }
@@ -118,49 +114,9 @@ public class CompilationServiceImpl implements CompilationService {
         Compilation compilation = compilationRepository.findByIdWithEvents(compId)
                 .orElseThrow(() -> new NotFoundException(
                         String.format("Compilation with id=%d was not found", compId)));
-        Map<Long, EventShortDto> stats = buildEventsWithStats(compilation.getEvents().stream().toList());
+        Map<Long, EventShortDto> stats = eventService.getEventsWithStats(
+                compilation.getEvents().stream().toList());
         return CompilationMapper.toDtoWithStats(compilation, stats);
-    }
-
-    /**
-     * Строит карту EventShortDto с актуальными views и confirmedRequests
-     * для списка событий. Логика аналогична EventServiceImpl.getPublicEvents.
-     */
-    private Map<Long, EventShortDto> buildEventsWithStats(List<Event> events) {
-        if (events == null || events.isEmpty()) {
-            return Map.of();
-        }
-
-        List<Long> eventIds = events.stream().map(Event::getId).toList();
-
-        Map<Long, Long> confirmedCounts = requestService.getConfirmedRequestsCount(eventIds);
-
-        List<String> uris = eventIds.stream()
-                .map(id -> EVENT_URI_PREFIX + id)
-                .toList();
-
-        List<ViewStatsDto> stats = statClient.getStats(
-                STATS_START,
-                LocalDateTime.now().plusSeconds(1),
-                uris,
-                false
-        );
-
-        Map<Long, Long> viewsMap = stats.stream()
-                .filter(v -> v.getUri() != null && v.getUri().startsWith(EVENT_URI_PREFIX))
-                .collect(Collectors.toMap(
-                        v -> Long.parseLong(v.getUri().substring(EVENT_URI_PREFIX.length())),
-                        ViewStatsDto::getHits,
-                        Long::sum
-                ));
-
-        return events.stream()
-                .map(EventMapper::toShortDto)
-                .peek(dto -> {
-                    dto.setConfirmedRequests(confirmedCounts.getOrDefault(dto.getId(), 0L));
-                    dto.setViews(viewsMap.getOrDefault(dto.getId(), 0L));
-                })
-                .collect(Collectors.toMap(EventShortDto::getId, Function.identity()));
     }
 
     /**

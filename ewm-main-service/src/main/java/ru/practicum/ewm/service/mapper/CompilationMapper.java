@@ -22,27 +22,6 @@ public final class CompilationMapper {
     }
 
     /**
-     * Преобразует Compilation Entity в CompilationDto без статистики.
-     * Используется только если статистика уже не нужна (например, в тестах).
-     */
-    public static CompilationDto toDto(Compilation compilation) {
-        if (compilation == null) {
-            return null;
-        }
-
-        List<EventShortDto> eventDtos = compilation.getEvents().stream()
-                .map(EventMapper::toShortDto)
-                .collect(Collectors.toList());
-
-        return CompilationDto.builder()
-                .id(compilation.getId())
-                .title(compilation.getTitle())
-                .pinned(compilation.getPinned())
-                .events(eventDtos)
-                .build();
-    }
-
-    /**
      * Преобразует Compilation Entity в CompilationDto, используя готовую карту
      * событий со статистикой (views и confirmedRequests).
      */

@@ -32,10 +32,8 @@ import ru.practicum.stats.dto.EndpointHitDto;
 import ru.practicum.stats.dto.ViewStatsDto;
 
 import java.time.LocalDateTime;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /**
@@ -55,6 +53,7 @@ public class EventServiceImpl implements EventService {
     private final RequestService requestService;
 
     private static final String EVENT_URI_PREFIX = "/events/";
+    private static final LocalDateTime STATS_START = LocalDateTime.of(2020, 1, 1, 0, 0);
 
     /**
      * Создает новое событие от имени пользователя.
@@ -381,7 +380,6 @@ public class EventServiceImpl implements EventService {
 
         spec = spec.and(PublicEventSpecs.eventDateRange(rangeStart, rangeEnd));
 
-
         if (rangeStart == null && rangeEnd == null) {
             spec = spec.and(PublicEventSpecs.isFuture());
         }
@@ -404,28 +402,10 @@ public class EventServiceImpl implements EventService {
             return Collections.emptyList();
         }
 
-        List<String> uris = events.stream()
-                .map(event -> EVENT_URI_PREFIX + event.getId())
-                .collect(Collectors.toList());
-
-        LocalDateTime statsStart = LocalDateTime.of(2020, 1, 1, 0, 0);
-        LocalDateTime statsEnd = LocalDateTime.now().plusSeconds(1);
-        List<ViewStatsDto> stats = statClient.getStats(statsStart, statsEnd, uris, false);
-
-        Map<Long, Long> viewsMap = stats.stream()
-                .filter(v -> v.getUri() != null && v.getUri().matches("/events/\\d+"))
-                .collect(Collectors.toMap(
-                        v -> Long.parseLong(v.getUri().substring("/events/".length())),
-                        ViewStatsDto::getHits,
-                        Long::sum));
-
-        List<Long> eventIds = events.stream().map(Event::getId).toList();
-        Map<Long, Long> confirmedCounts = requestService.getConfirmedRequestsCount(eventIds);
-
+        Map<Long, EventShortDto> statsMap = getEventsWithStats(events);
         List<EventShortDto> dtos = events.stream()
-                .map(EventMapper::toShortDto)
-                .peek(dto -> dto.setConfirmedRequests(confirmedCounts.getOrDefault(dto.getId(), 0L)))
-                .peek(dto -> dto.setViews(viewsMap.getOrDefault(dto.getId(), 0L)))
+                .map(event -> statsMap.get(event.getId()))
+                .filter(Objects::nonNull)
                 .collect(Collectors.toList());
 
         if (request.getSort() == PublicParamSearch.Sort.VIEWS) {
@@ -460,29 +440,56 @@ public class EventServiceImpl implements EventService {
                 .timestamp(LocalDateTime.now())
                 .build());
 
-        List<ViewStatsDto> stats = statClient.getStats(
-                LocalDateTime.of(2020, 1, 1, 0, 0),
-                LocalDateTime.now().plusSeconds(1),
-                List.of(uri), false);
-
-        long views = stats.isEmpty() ? 0L : stats.getFirst().getHits();
-
-        long confirmedRequests = requestService.getConfirmedRequestsCount(List.of(eventId)).getOrDefault(eventId, 0L);
+        Map<Long, EventShortDto> statsMap = getEventsWithStats(List.of(event));
+        EventShortDto shortDto = statsMap.get(eventId);
 
         EventFullDto dto = EventMapper.toDto(event);
-        dto.setViews(views);
-        dto.setConfirmedRequests(confirmedRequests);
+        dto.setViews(shortDto.getViews());
+        dto.setConfirmedRequests(shortDto.getConfirmedRequests());
         return dto;
     }
 
     /**
-     * Парсит строку даты в LocalDateTime или возвращает null.
-     * Ожидает формат yyyy-MM-dd HH:mm:ss.
+     * Преобразует список событий в карту EventShortDto с актуальной статистикой.
+     * Общий метод для всех мест, где нужно обогатить события views и confirmedRequests.
      *
-     * @param value строка с датой или null
-     * @return распарсенная дата или null
-     * @throws BadRequestException если формат даты некорректен
+     * @param events список событий
+     * @return карта id события -> EventShortDto со статистикой
      */
+    @Override
+    public Map<Long, EventShortDto> getEventsWithStats(List<Event> events) {
+        if (events == null || events.isEmpty()) {
+            return Collections.emptyMap();
+        }
+
+        List<Long> eventIds = events.stream().map(Event::getId).toList();
+
+        Map<Long, Long> confirmedCounts = requestService.getConfirmedRequestsCount(eventIds);
+
+        List<String> uris = eventIds.stream()
+                .map(id -> EVENT_URI_PREFIX + id)
+                .toList();
+
+        LocalDateTime statsEnd = LocalDateTime.now().plusSeconds(1);
+        List<ViewStatsDto> stats = statClient.getStats(STATS_START, statsEnd, uris, false);
+
+        Map<Long, Long> viewsMap = stats.stream()
+                .filter(v -> v.getUri() != null && v.getUri().matches("/events/\\d+"))
+                .collect(Collectors.toMap(
+                        v -> Long.parseLong(v.getUri().substring(EVENT_URI_PREFIX.length())),
+                        ViewStatsDto::getHits,
+                        Long::sum
+                ));
+
+        return events.stream()
+                .map(EventMapper::toShortDto)
+                .peek(dto -> {
+                    dto.setConfirmedRequests(confirmedCounts.getOrDefault(dto.getId(), 0L));
+                    dto.setViews(viewsMap.getOrDefault(dto.getId(), 0L));
+                })
+                .collect(Collectors.toMap(EventShortDto::getId, Function.identity()));
+    }
+
     private LocalDateTime parseDateOrNull(String value) {
         if (value == null || value.isBlank()) {
             return null;

@@ -7,20 +7,19 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
+import ru.practicum.ewm.common.DateTimeConstants;
 import ru.practicum.ewm.dto.compilation.request.NewCompilationDto;
 import ru.practicum.ewm.dto.compilation.request.UpdateCompilationRequest;
 import ru.practicum.ewm.dto.compilation.response.CompilationDto;
+import ru.practicum.ewm.dto.event.response.EventShortDto;
 import ru.practicum.ewm.exception.model.NotFoundException;
 import ru.practicum.ewm.model.*;
 import ru.practicum.ewm.repository.CompilationRepository;
 import ru.practicum.ewm.repository.EventRepository;
-import ru.practicum.ewm.service.RequestService;
-import ru.practicum.stats.client.StatClient;
-import ru.practicum.stats.dto.ViewStatsDto;
+import ru.practicum.ewm.service.EventService;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -30,10 +29,7 @@ import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyBoolean;
-import static org.mockito.ArgumentMatchers.anyList;
-import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -46,10 +42,7 @@ class CompilationServiceImplTest {
     private EventRepository eventRepository;
 
     @Mock
-    private RequestService requestService;
-
-    @Mock
-    private StatClient statClient;
+    private EventService eventService;
 
     @InjectMocks
     private CompilationServiceImpl compilationService;
@@ -58,7 +51,7 @@ class CompilationServiceImplTest {
     private NewCompilationDto newCompilationDto;
     private UpdateCompilationRequest updateRequest;
     private Event event;
-    private ViewStatsDto viewStatsDto;
+    private EventShortDto eventShortDto;
     private Pageable pageable;
 
     @BeforeEach
@@ -74,13 +67,15 @@ class CompilationServiceImplTest {
                 .email("test@example.com")
                 .build();
 
+        LocalDateTime eventDateTime = LocalDateTime.of(2025, 12, 31, 15, 0);
+
         event = Event.builder()
                 .id(1L)
                 .title("Test Event")
                 .annotation("Test annotation")
                 .category(category)
                 .initiator(initiator)
-                .eventDate(LocalDateTime.of(2025, 12, 31, 15, 0))
+                .eventDate(eventDateTime)
                 .createdOn(LocalDateTime.now())
                 .paid(false)
                 .participantLimit(10)
@@ -106,18 +101,17 @@ class CompilationServiceImplTest {
                 .pinned(true)
                 .build();
 
-        viewStatsDto = ViewStatsDto.builder()
-                .uri("/events/1")
-                .hits(100L)
+        eventShortDto = EventShortDto.builder()
+                .id(1L)
+                .title("Test Event")
+                .annotation("Test annotation")
+                .paid(false)
+                .eventDate(DateTimeConstants.FORMATTER.format(eventDateTime))
+                .views(100L)
+                .confirmedRequests(5L)
                 .build();
 
         pageable = PageRequest.of(0, 10, Sort.by(Sort.Direction.ASC, "id"));
-    }
-
-    private void mockStatsServices() {
-        when(requestService.getConfirmedRequestsCount(anyList())).thenReturn(Map.of(1L, 5L));
-        when(statClient.getStats(any(LocalDateTime.class), any(LocalDateTime.class), anyList(), anyBoolean()))
-                .thenReturn(List.of(viewStatsDto));
     }
 
     @Test
@@ -126,7 +120,7 @@ class CompilationServiceImplTest {
         when(eventRepository.findAllById(List.of(1L))).thenReturn(List.of(event));
         when(compilationRepository.save(any(Compilation.class))).thenReturn(compilation);
         when(compilationRepository.findByIdWithEvents(1L)).thenReturn(Optional.of(compilation));
-        mockStatsServices();
+        when(eventService.getEventsWithStats(anyList())).thenReturn(Map.of(1L, eventShortDto));
 
         CompilationDto result = compilationService.save(newCompilationDto);
 
@@ -139,6 +133,7 @@ class CompilationServiceImplTest {
         verify(eventRepository).findAllById(List.of(1L));
         verify(compilationRepository).save(any(Compilation.class));
         verify(compilationRepository).findByIdWithEvents(1L);
+        verify(eventService).getEventsWithStats(anyList());
     }
 
     @Test
@@ -158,13 +153,14 @@ class CompilationServiceImplTest {
 
         when(compilationRepository.save(any(Compilation.class))).thenReturn(emptyCompilation);
         when(compilationRepository.findByIdWithEvents(2L)).thenReturn(Optional.of(emptyCompilation));
+        when(eventService.getEventsWithStats(anyList())).thenReturn(Map.of());
 
         CompilationDto result = compilationService.save(dtoWithoutEvents);
 
         assertThat(result).isNotNull();
         assertThat(result.getEvents()).isEmpty();
         verify(eventRepository, never()).findAllById(anyList());
-        verify(compilationRepository).findByIdWithEvents(2L);
+        verify(eventService).getEventsWithStats(List.of());
     }
 
     @Test
@@ -173,7 +169,7 @@ class CompilationServiceImplTest {
         when(compilationRepository.findById(1L)).thenReturn(Optional.of(compilation));
         when(compilationRepository.save(any(Compilation.class))).thenReturn(compilation);
         when(compilationRepository.findByIdWithEvents(1L)).thenReturn(Optional.of(compilation));
-        mockStatsServices();
+        when(eventService.getEventsWithStats(anyList())).thenReturn(Map.of(1L, eventShortDto));
 
         CompilationDto result = compilationService.update(1L, updateRequest);
 
@@ -241,9 +237,11 @@ class CompilationServiceImplTest {
     @Test
     @DisplayName("Должен получить список подборок с фильтрацией по pinned")
     void getAll_ShouldReturnFilteredCompilations_WhenPinnedIsNotNull() {
-        when(compilationRepository.findAllByPinnedWithEvents(eq(true), any(Pageable.class)))
-                .thenReturn(new PageImpl<>(List.of(compilation)));
-        mockStatsServices();
+        when(compilationRepository.findIdsByPinned(eq(true), any(Pageable.class)))
+                .thenReturn(List.of(1L));
+        when(compilationRepository.findByIdsWithEvents(List.of(1L)))
+                .thenReturn(List.of(compilation));
+        when(eventService.getEventsWithStats(anyList())).thenReturn(Map.of(1L, eventShortDto));
 
         List<CompilationDto> result = compilationService.getAll(true, pageable);
 
@@ -251,28 +249,43 @@ class CompilationServiceImplTest {
         assertThat(result.get(0).getTitle()).isEqualTo("Test Compilation");
         assertThat(result.get(0).getEvents()).hasSize(1);
 
-        verify(compilationRepository).findAllByPinnedWithEvents(eq(true), any(Pageable.class));
+        verify(compilationRepository).findIdsByPinned(eq(true), any(Pageable.class));
+        verify(compilationRepository).findByIdsWithEvents(List.of(1L));
     }
 
     @Test
     @DisplayName("Должен получить все подборки когда pinned равен null")
     void getAll_ShouldReturnAllCompilations_WhenPinnedIsNull() {
-        when(compilationRepository.findAllWithEvents(any(Pageable.class)))
-                .thenReturn(new PageImpl<>(List.of(compilation)));
-        mockStatsServices();
+        when(compilationRepository.findAllIds(any(Pageable.class)))
+                .thenReturn(List.of(1L));
+        when(compilationRepository.findByIdsWithEvents(List.of(1L)))
+                .thenReturn(List.of(compilation));
+        when(eventService.getEventsWithStats(anyList())).thenReturn(Map.of(1L, eventShortDto));
 
         List<CompilationDto> result = compilationService.getAll(null, pageable);
 
         assertThat(result).hasSize(1);
-        verify(compilationRepository).findAllWithEvents(any(Pageable.class));
-        verify(compilationRepository, never()).findAllByPinnedWithEvents(any(), any());
+        verify(compilationRepository).findAllIds(any(Pageable.class));
+        verify(compilationRepository).findByIdsWithEvents(List.of(1L));
+    }
+
+    @Test
+    @DisplayName("Должен вернуть пустой список, если подборок нет")
+    void getAll_ShouldReturnEmptyList_WhenNoCompilations() {
+        when(compilationRepository.findAllIds(any(Pageable.class)))
+                .thenReturn(List.of());
+
+        List<CompilationDto> result = compilationService.getAll(null, pageable);
+
+        assertThat(result).isEmpty();
+        verify(eventService, never()).getEventsWithStats(anyList());
     }
 
     @Test
     @DisplayName("Должен получить подборку по ID")
     void getById_ShouldReturnCompilation_WhenExists() {
         when(compilationRepository.findByIdWithEvents(1L)).thenReturn(Optional.of(compilation));
-        mockStatsServices();
+        when(eventService.getEventsWithStats(anyList())).thenReturn(Map.of(1L, eventShortDto));
 
         CompilationDto result = compilationService.getById(1L);
 
@@ -316,13 +329,13 @@ class CompilationServiceImplTest {
 
         when(compilationRepository.save(any(Compilation.class))).thenReturn(emptyCompilation);
         when(compilationRepository.findByIdWithEvents(3L)).thenReturn(Optional.of(emptyCompilation));
+        when(eventService.getEventsWithStats(anyList())).thenReturn(Map.of());
 
         CompilationDto result = compilationService.save(dtoWithEmptyEvents);
 
         assertThat(result).isNotNull();
         assertThat(result.getEvents()).isEmpty();
         verify(eventRepository, never()).findAllById(anyList());
-        verify(compilationRepository).findByIdWithEvents(3L);
     }
 
     @Test
