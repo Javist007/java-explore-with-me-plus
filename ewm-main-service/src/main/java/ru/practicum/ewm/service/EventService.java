@@ -4,8 +4,10 @@ import jakarta.servlet.http.HttpServletRequest;
 import ru.practicum.ewm.dto.event.request.*;
 import ru.practicum.ewm.dto.event.response.EventFullDto;
 import ru.practicum.ewm.dto.event.response.EventShortDto;
+import ru.practicum.ewm.model.Event;
 
 import java.util.List;
+import java.util.Map;
 
 /**
  * Сервис для работы с событиями.
@@ -82,5 +84,15 @@ public interface EventService {
      * @return полное DTO события
      */
     EventFullDto getPublicEventId(Long eventId, HttpServletRequest servletRequest);
+
+    /**
+     * Преобразует список событий в список EventShortDto с актуальной статистикой
+     * (views из StatClient и confirmedRequests из RequestService).
+     * Используется для обогащения событий статистикой при маппинге.
+     *
+     * @param events список событий
+     * @return карта id события -> EventShortDto со статистикой
+     */
+    Map<Long, EventShortDto> getEventsWithStats(List<Event> events);
 
 }
