@@ -30,7 +30,7 @@ public interface CompilationService {
     /**
      * Получение списка подборок с фильтрацией по pinned и пагинацией.
      */
-    List<CompilationDto> getAll(Boolean pinned, Pageable pageable);
+    List<CompilationDto> getAll(Boolean pinned, Integer from, Integer size);
 
     /**
      * Получение подборки по ID.

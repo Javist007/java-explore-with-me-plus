@@ -15,6 +15,7 @@ import ru.practicum.ewm.dto.compilation.request.NewCompilationDto;
 import ru.practicum.ewm.dto.compilation.request.UpdateCompilationRequest;
 import ru.practicum.ewm.dto.compilation.response.CompilationDto;
 import ru.practicum.ewm.dto.event.response.EventShortDto;
+import ru.practicum.ewm.exception.model.BadRequestException;
 import ru.practicum.ewm.exception.model.NotFoundException;
 import ru.practicum.ewm.model.*;
 import ru.practicum.ewm.repository.CompilationRepository;
@@ -243,7 +244,7 @@ class CompilationServiceImplTest {
                 .thenReturn(List.of(compilation));
         when(eventService.getEventsWithStats(anyList())).thenReturn(Map.of(1L, eventShortDto));
 
-        List<CompilationDto> result = compilationService.getAll(true, pageable);
+        List<CompilationDto> result = compilationService.getAll(true, 0, 10);
 
         assertThat(result).hasSize(1);
         assertThat(result.get(0).getTitle()).isEqualTo("Test Compilation");
@@ -262,7 +263,7 @@ class CompilationServiceImplTest {
                 .thenReturn(List.of(compilation));
         when(eventService.getEventsWithStats(anyList())).thenReturn(Map.of(1L, eventShortDto));
 
-        List<CompilationDto> result = compilationService.getAll(null, pageable);
+        List<CompilationDto> result = compilationService.getAll(null, 0, 10);
 
         assertThat(result).hasSize(1);
         verify(compilationRepository).findAllIds(any(Pageable.class));
@@ -275,10 +276,26 @@ class CompilationServiceImplTest {
         when(compilationRepository.findAllIds(any(Pageable.class)))
                 .thenReturn(List.of());
 
-        List<CompilationDto> result = compilationService.getAll(null, pageable);
+        List<CompilationDto> result = compilationService.getAll(null, 0, 10);
 
         assertThat(result).isEmpty();
         verify(eventService, never()).getEventsWithStats(anyList());
+    }
+
+    @Test
+    @DisplayName("Должен выбросить BadRequestException если from не кратно size")
+    void getAll_ShouldThrowBadRequestException_WhenFromNotMultipleOfSize() {
+        assertThatThrownBy(() -> compilationService.getAll(null, 5, 10))
+                .isInstanceOf(BadRequestException.class)
+                .hasMessageContaining("Parameter 'from' must be a multiple of 'size'");
+    }
+
+    @Test
+    @DisplayName("Должен выбросить BadRequestException если size <= 0")
+    void getAll_ShouldThrowBadRequestException_WhenSizeIsZeroOrNegative() {
+        assertThatThrownBy(() -> compilationService.getAll(null, 0, 0))
+                .isInstanceOf(BadRequestException.class)
+                .hasMessageContaining("Parameter 'size' must be greater than 0");
     }
 
     @Test

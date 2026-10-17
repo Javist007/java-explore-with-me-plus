@@ -3,13 +3,9 @@ package ru.practicum.ewm.controller;
 import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.PositiveOrZero;
 import lombok.RequiredArgsConstructor;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Pageable;
-import org.springframework.data.domain.Sort;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 import ru.practicum.ewm.dto.compilation.response.CompilationDto;
-import ru.practicum.ewm.exception.model.BadRequestException;
 import ru.practicum.ewm.service.CompilationService;
 
 import java.util.List;
@@ -33,18 +29,7 @@ public class PublicCompilationController {
             @RequestParam(required = false) Boolean pinned,
             @RequestParam(defaultValue = "0") @PositiveOrZero Integer from,
             @RequestParam(defaultValue = "10") @Positive Integer size) {
-
-        if (from % size != 0) {
-            throw new BadRequestException("Parameter 'from' must be a multiple of 'size'");
-        }
-
-        Pageable pageable = PageRequest.of(
-                from / size,
-                size,
-                Sort.by(Sort.Direction.ASC, "id")
-        );
-
-        return compilationService.getAll(pinned, pageable);
+        return compilationService.getAll(pinned, from, size);
     }
 
     /**

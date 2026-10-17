@@ -1,13 +1,16 @@
 package ru.practicum.ewm.service.impl;
 
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import ru.practicum.ewm.dto.compilation.request.NewCompilationDto;
 import ru.practicum.ewm.dto.compilation.request.UpdateCompilationRequest;
 import ru.practicum.ewm.dto.compilation.response.CompilationDto;
 import ru.practicum.ewm.dto.event.response.EventShortDto;
+import ru.practicum.ewm.exception.model.BadRequestException;
 import ru.practicum.ewm.exception.model.NotFoundException;
 import ru.practicum.ewm.model.Compilation;
 import ru.practicum.ewm.model.Event;
@@ -85,7 +88,23 @@ public class CompilationServiceImpl implements CompilationService {
     }
 
     @Override
-    public List<CompilationDto> getAll(Boolean pinned, Pageable pageable) {
+    public List<CompilationDto> getAll(Boolean pinned, Integer from, Integer size) {
+        if (size == null || size <= 0) {
+            throw new BadRequestException("Parameter 'size' must be greater than 0");
+        }
+        if (from != null && from % size != 0) {
+            throw new BadRequestException("Parameter 'from' must be a multiple of 'size'");
+        }
+
+        int fromValue = from != null ? from : 0;
+        int sizeValue = size != null ? size : 10;
+
+        Pageable pageable = PageRequest.of(
+                fromValue / sizeValue,
+                sizeValue,
+                Sort.by(Sort.Direction.ASC, "id")
+        );
+
         List<Long> ids;
         if (pinned != null) {
             ids = compilationRepository.findIdsByPinned(pinned, pageable);
