@@ -89,7 +89,7 @@ public class CompilationServiceImpl implements CompilationService {
 
     @Override
     public List<CompilationDto> getAll(Boolean pinned, Integer from, Integer size) {
-        if (size == null || size <= 0) {
+        if (size <= 0) {
             throw new BadRequestException("Parameter 'size' must be greater than 0");
         }
         if (from != null && from % size != 0) {
@@ -97,7 +97,7 @@ public class CompilationServiceImpl implements CompilationService {
         }
 
         int fromValue = from != null ? from : 0;
-        int sizeValue = size != null ? size : 10;
+        int sizeValue = size;
 
         Pageable pageable = PageRequest.of(
                 fromValue / sizeValue,
