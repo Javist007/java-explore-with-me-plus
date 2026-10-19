@@ -77,7 +77,7 @@ public class EventServiceImpl implements EventService {
         LocalDateTime eventDate = parseDateOrNull(request.getEventDate());
 
         if (eventDate.isBefore(LocalDateTime.now().plusHours(2))) {
-            throw new ConflictException("Дата события должна быть не ранее чем через 2 часа от текущего момента");
+            throw new BadRequestException("Дата события должна быть не ранее чем через 2 часа от текущего момента");
         }
 
         return EventMapper.toDto(eventRepository.save(EventMapper.toEntity(request, user, category)));
@@ -172,7 +172,7 @@ public class EventServiceImpl implements EventService {
         if (context.getRequest().hasEventDate()) {
             LocalDateTime eventDate = parseDateOrNull(context.getRequest().getEventDate());
             if (eventDate.isBefore(LocalDateTime.now().plusHours(2))) {
-                throw new ConflictException("Дата события должна быть не ранее чем через 2 часа от текущего момента");
+                throw new BadRequestException("Дата события должна быть не ранее чем через 2 часа от текущего момента");
             }
             event.setEventDate(eventDate);
         }
@@ -302,6 +302,9 @@ public class EventServiceImpl implements EventService {
 
         if (request.hasEventDate()) {
             LocalDateTime eventDate = parseDateOrNull(request.getEventDate());
+            if (eventDate.isBefore(LocalDateTime.now())) {
+                throw new BadRequestException("Дата события не может быть в прошлом");
+            }
             LocalDateTime publishedOn = event.getPublishedOn() != null
                     ? event.getPublishedOn()
                     : event.getCreatedOn();
@@ -361,8 +364,7 @@ public class EventServiceImpl implements EventService {
      */
     @Override
     @Transactional(readOnly = true)
-    public List<EventShortDto> getPublicEvents(PublicParamSearch request) {
-
+    public List<EventShortDto> getPublicEvents(PublicParamSearch request, HttpServletRequest servletRequest) {
         Specification<Event> spec = Specification.where(PublicEventSpecs.isPublished());
 
         if (request.getText() != null && !request.getText().isBlank()) {
@@ -378,6 +380,9 @@ public class EventServiceImpl implements EventService {
         LocalDateTime rangeStart = parseDateOrNull(request.getRangeStart());
         LocalDateTime rangeEnd = parseDateOrNull(request.getRangeEnd());
 
+        if (rangeStart != null && rangeEnd != null && rangeStart.isAfter(rangeEnd)) {
+            throw new BadRequestException("rangeStart не может быть позже rangeEnd");
+        }
         spec = spec.and(PublicEventSpecs.eventDateRange(rangeStart, rangeEnd));
 
         if (rangeStart == null && rangeEnd == null) {
@@ -391,6 +396,14 @@ public class EventServiceImpl implements EventService {
         if (request.getSize() == null || request.getSize() <= 0) {
             throw new BadRequestException("Параметр size должен быть больше 0");
         }
+
+        // Запрос корректен: фиксируем его в статистике до выборки, чтобы учесть и пустой результат
+        statClient.saveHit(EndpointHitDto.builder()
+                .app("ewm-main-service").uri(servletRequest.getRequestURI())
+                .ip(servletRequest.getRemoteAddr())
+                .timestamp(LocalDateTime.now())
+                .build());
+
         int page = Math.max(0, request.getFrom()) / request.getSize();
         PageRequest pageable = PageRequest.of(page, request.getSize(),
                 Sort.by(Sort.Direction.ASC, "eventDate"));
@@ -471,7 +484,7 @@ public class EventServiceImpl implements EventService {
                 .toList();
 
         LocalDateTime statsEnd = LocalDateTime.now().plusSeconds(1);
-        List<ViewStatsDto> stats = statClient.getStats(STATS_START, statsEnd, uris, false);
+        List<ViewStatsDto> stats = statClient.getStats(STATS_START, statsEnd, uris, true);
 
         Map<Long, Long> viewsMap = stats.stream()
                 .filter(v -> v.getUri() != null && v.getUri().matches("/events/\\d+"))

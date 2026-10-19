@@ -365,4 +365,56 @@ class PublicAndAdminEventControllerIntegrationTest {
                         .content(objectMapper.writeValueAsString(req)))
                 .andExpect(status().isBadRequest());
     }
+
+    /**
+     * Тестирует фильтр по инициаторам в административном поиске.
+     * Раньше фильтр сравнивал сущность User с id и падал с 500.
+     */
+    @Test
+    @DisplayName("GET /admin/events?users=...: фильтр по id инициатора работает, а не падает 500")
+    void adminSearchFiltersByUsers() throws Exception {
+        Event event = persistEvent(EventState.PUBLISHED, LocalDateTime.now().plusDays(1), "Событие инициатора");
+        when(statClient.getStats(any(), any(), anyList(), anyBoolean())).thenReturn(List.of());
+
+        mockMvc.perform(get("/admin/events")
+                        .param("users", String.valueOf(initiator.getId()))
+                        .param("from", "0").param("size", "10"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[?(@.id == " + event.getId() + ")]").exists());
+
+        mockMvc.perform(get("/admin/events")
+                        .param("users", "987654")
+                        .param("from", "0").param("size", "10"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(0));
+    }
+
+    /**
+     * Тестирует проверку диапазона дат в публичном поиске.
+     * Проверяет, что rangeStart позже rangeEnd даёт 400, а запрос не попадает в статистику.
+     */
+    @Test
+    @DisplayName("GET /events: rangeStart позже rangeEnd -> 400, хит не пишется")
+    void publicSearchRangeStartAfterRangeEndReturns400() throws Exception {
+        mockMvc.perform(get("/events")
+                        .param("rangeStart", "2035-01-01 00:00:00")
+                        .param("rangeEnd", "2020-01-01 00:00:00"))
+                .andExpect(status().isBadRequest());
+
+        verify(statClient, never()).saveHit(any());
+    }
+
+    /**
+     * Тестирует запись обращения к списку событий в сервис статистики.
+     * Проверяет, что GET /events сохраняет хит с uri "/events".
+     */
+    @Test
+    @DisplayName("GET /events: запрос списка сохраняется в статистике с uri /events")
+    void publicSearchSavesHit() throws Exception {
+        mockMvc.perform(get("/events").param("from", "0").param("size", "10"))
+                .andExpect(status().isOk());
+
+        verify(statClient).saveHit(argThat(hit -> "/events".equals(hit.getUri())
+                && "ewm-main-service".equals(hit.getApp())));
+    }
 }

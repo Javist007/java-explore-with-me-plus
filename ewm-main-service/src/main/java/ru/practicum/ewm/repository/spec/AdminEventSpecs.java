@@ -23,7 +23,7 @@ public class AdminEventSpecs {
     public static Specification<Event> hasUser(AdminParamSearch search) {
         return (root, query, cb) ->
                 (search.getUsers() != null && !search.getUsers().isEmpty())
-                        ? root.get("initiator").in(search.getUsers())
+                        ? root.get("initiator").get("id").in(search.getUsers())
                         : cb.conjunction();
     }
 

@@ -24,6 +24,7 @@ import ru.practicum.ewm.repository.UserRepository;
 import ru.practicum.ewm.repository.projection.EventRequestCount;
 
 import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -156,7 +157,7 @@ class RequestServiceImplTest {
         when(requestRepository.existsByEventIdAndRequesterId(EVENT_ID, USER_ID)).thenReturn(false);
         when(requestRepository.countByEventIdAndStatus(EVENT_ID, RequestStatus.CONFIRMED)).thenReturn(1L);
         stubSaveWithId(100L);
-        LocalDateTime before = LocalDateTime.now();
+        LocalDateTime before = LocalDateTime.now().truncatedTo(ChronoUnit.MILLIS);
 
         ParticipationRequestDto result = requestService.addRequest(USER_ID, EVENT_ID);
 
@@ -167,6 +168,8 @@ class RequestServiceImplTest {
         assertThat(saved.getRequester()).isSameAs(requester);
         assertThat(saved.getStatus()).isEqualTo(RequestStatus.PENDING);
         assertThat(saved.getCreated()).isBetween(before, LocalDateTime.now());
+        // точность до миллисекунд: иначе время в ответе POST расходится со значением из БД (микросекунды)
+        assertThat(saved.getCreated().getNano() % 1_000_000).isZero();
         assertThat(result.getId()).isEqualTo(100L);
         assertThat(result.getStatus()).isEqualTo(RequestStatus.PENDING);
     }

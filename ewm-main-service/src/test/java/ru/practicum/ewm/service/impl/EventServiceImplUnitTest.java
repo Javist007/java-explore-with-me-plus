@@ -198,8 +198,8 @@ class EventServiceImplUnitTest {
         }
 
         @Test
-        @DisplayName("Дата раньше чем через 2 часа -> 409 ConflictException")
-        void shouldThrowConflictWhenDateTooSoon() {
+        @DisplayName("Дата раньше чем через 2 часа -> 400 BadRequestException (так требуют тесты Postman)")
+        void shouldThrowBadRequestWhenDateTooSoon() {
             when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user));
             when(categoryRepository.findById(CATEGORY_ID)).thenReturn(Optional.of(category));
 
@@ -207,7 +207,7 @@ class EventServiceImplUnitTest {
                     .format(FMT);
 
             assertThatThrownBy(() -> eventService.createEvent(newEventRequest(soonDate), USER_ID))
-                    .isInstanceOf(ConflictException.class)
+                    .isInstanceOf(BadRequestException.class)
                     .hasMessageContaining("2 часа");
 
             verify(eventRepository, never()).save(any());
@@ -372,7 +372,7 @@ class EventServiceImplUnitTest {
         }
 
         @Test
-        @DisplayName("Изменение eventDate на слишком близкую дату -> 409")
+        @DisplayName("Изменение eventDate на слишком близкую дату -> 400")
         void shouldRejectTooSoonDate() {
             Event e = event(EVENT_ID, EventState.PENDING);
             when(eventRepository.findByInitiatorIdAndId(USER_ID, EVENT_ID)).thenReturn(Optional.of(e));
@@ -383,7 +383,7 @@ class EventServiceImplUnitTest {
 
             assertThatThrownBy(() -> eventService.updateEvent(
                     UpdateEventContext.builder().request(req).userId(USER_ID).eventId(EVENT_ID).build()))
-                    .isInstanceOf(ConflictException.class)
+                    .isInstanceOf(BadRequestException.class)
                     .hasMessageContaining("2 часа");
         }
 
@@ -550,11 +550,11 @@ class EventServiceImplUnitTest {
         @DisplayName("Смена даты PUBLISHED-события раньше publishedOn+1h -> 409")
         void shouldEnforceOneHourRuleForPublished() {
             Event e = event(EVENT_ID, EventState.PUBLISHED);
-            e.setPublishedOn(LocalDateTime.of(2026, 10, 10, 10, 0));
+            e.setPublishedOn(LocalDateTime.now().minusMinutes(10));
             when(eventRepository.findById(EVENT_ID)).thenReturn(Optional.of(e));
 
             UpdateEventAdminRequest req = UpdateEventAdminRequest.builder()
-                    .eventDate("2026-10-10 10:30:00")
+                    .eventDate(LocalDateTime.now().plusMinutes(20).format(FMT)) // в будущем, но раньше publishedOn + 1h
                     .build();
 
             assertThatThrownBy(() -> eventService.adminUpdateEvent(EVENT_ID, req))
@@ -565,15 +565,32 @@ class EventServiceImplUnitTest {
         @Test
         @DisplayName("publishedOn == null (PENDING-событие): проверки даты не падают NPE, используется createdOn")
         void shouldNotThrowNpeWhenPublishedOnNull() {
-            Event e = event(EVENT_ID, EventState.PENDING); // publishedOn = null, createdOn = 2026-10-01T12:00
+            Event e = event(EVENT_ID, EventState.PENDING); // publishedOn = null
+            e.setCreatedOn(LocalDateTime.now().minusMinutes(10));
             when(eventRepository.findById(EVENT_ID)).thenReturn(Optional.of(e));
 
             UpdateEventAdminRequest req = UpdateEventAdminRequest.builder()
-                    .eventDate("2026-10-01 12:30:00") // раньше createdOn + 1h
+                    .eventDate(LocalDateTime.now().plusMinutes(20).format(FMT)) // в будущем, но раньше createdOn + 1h
                     .build();
 
             assertThatThrownBy(() -> eventService.adminUpdateEvent(EVENT_ID, req))
                     .isInstanceOf(ConflictException.class); // 409, а не NPE!
+        }
+
+        @Test
+        @DisplayName("Дата события в прошлом -> 400 BadRequestException, до проверки правила часа")
+        void shouldRejectPastEventDate() {
+            Event e = event(EVENT_ID, EventState.PENDING);
+            when(eventRepository.findById(EVENT_ID)).thenReturn(Optional.of(e));
+
+            UpdateEventAdminRequest req = UpdateEventAdminRequest.builder()
+                    .eventDate(LocalDateTime.now().minusDays(1).format(FMT))
+                    .build();
+
+            assertThatThrownBy(() -> eventService.adminUpdateEvent(EVENT_ID, req))
+                    .isInstanceOf(BadRequestException.class)
+                    .hasMessageContaining("прошлом");
+            verify(eventRepository, never()).save(any());
         }
     }
 
@@ -599,7 +616,7 @@ class EventServiceImplUnitTest {
 
             PublicParamSearch search = PublicParamSearch.builder().from(0).size(10).build();
 
-            List<EventShortDto> result = eventService.getPublicEvents(search);
+            List<EventShortDto> result = eventService.getPublicEvents(search, servletRequest);
 
             assertThat(result).hasSize(2);
             assertThat(result.get(0).getViews()).isEqualTo(100L);
@@ -624,7 +641,7 @@ class EventServiceImplUnitTest {
             PublicParamSearch search = PublicParamSearch.builder()
                     .from(0).size(10).sort(PublicParamSearch.Sort.VIEWS).build();
 
-            List<EventShortDto> result = eventService.getPublicEvents(search);
+            List<EventShortDto> result = eventService.getPublicEvents(search, servletRequest);
 
             assertThat(result.get(0).getId()).isEqualTo(2L); // больше просмотров — выше
             assertThat(result.get(0).getViews()).isEqualTo(999L);
@@ -643,7 +660,7 @@ class EventServiceImplUnitTest {
             when(requestService.getConfirmedRequestsCount(anyCollection())).thenReturn(Map.of());
 
             List<EventShortDto> result = eventService.getPublicEvents(
-                    PublicParamSearch.builder().from(0).size(10).build());
+                    PublicParamSearch.builder().from(0).size(10).build(), servletRequest);
 
             assertThat(result.get(0).getViews()).isEqualTo(12L); // IllegalStateException бы упал без merge
         }
@@ -655,7 +672,7 @@ class EventServiceImplUnitTest {
                     .thenReturn(Page.empty());
 
             assertThat(eventService.getPublicEvents(
-                    PublicParamSearch.builder().from(0).size(10).build())).isEmpty();
+                    PublicParamSearch.builder().from(0).size(10).build(), servletRequest)).isEmpty();
 
             verify(statClient, never()).getStats(any(), any(), anyList(), anyBoolean());
         }
@@ -666,7 +683,7 @@ class EventServiceImplUnitTest {
             PublicParamSearch search = PublicParamSearch.builder()
                     .rangeStart("01.01.2026").from(0).size(10).build();
 
-            assertThatThrownBy(() -> eventService.getPublicEvents(search))
+            assertThatThrownBy(() -> eventService.getPublicEvents(search, servletRequest))
                     .isInstanceOf(BadRequestException.class);
         }
 
@@ -675,8 +692,52 @@ class EventServiceImplUnitTest {
         void shouldRejectZeroSize() {
             PublicParamSearch search = PublicParamSearch.builder().from(0).size(0).build();
 
-            assertThatThrownBy(() -> eventService.getPublicEvents(search))
+            assertThatThrownBy(() -> eventService.getPublicEvents(search, servletRequest))
                     .isInstanceOf(BadRequestException.class);
+            verify(statClient, never()).saveHit(any());
+        }
+
+        @Test
+        @DisplayName("rangeStart позже rangeEnd -> 400, хит не пишется")
+        void shouldRejectRangeStartAfterRangeEnd() {
+            PublicParamSearch search = PublicParamSearch.builder()
+                    .rangeStart("2035-01-01 00:00:00").rangeEnd("2020-01-01 00:00:00")
+                    .from(0).size(10).build();
+
+            assertThatThrownBy(() -> eventService.getPublicEvents(search, servletRequest))
+                    .isInstanceOf(BadRequestException.class)
+                    .hasMessageContaining("rangeStart");
+            verify(statClient, never()).saveHit(any());
+        }
+
+        @Test
+        @DisplayName("Запрос списка фиксируется в статистике: uri и ip из запроса, даже при пустой выдаче")
+        void shouldSaveHitForEventList() {
+            when(servletRequest.getRequestURI()).thenReturn("/events");
+            when(servletRequest.getRemoteAddr()).thenReturn("10.0.0.7");
+            when(eventRepository.findAll(any(Specification.class), any(Pageable.class)))
+                    .thenReturn(Page.empty());
+
+            eventService.getPublicEvents(PublicParamSearch.builder().from(0).size(10).build(), servletRequest);
+
+            ArgumentCaptor<EndpointHitDto> hitCaptor = ArgumentCaptor.forClass(EndpointHitDto.class);
+            verify(statClient).saveHit(hitCaptor.capture());
+            assertThat(hitCaptor.getValue().getApp()).isEqualTo("ewm-main-service");
+            assertThat(hitCaptor.getValue().getUri()).isEqualTo("/events");
+            assertThat(hitCaptor.getValue().getIp()).isEqualTo("10.0.0.7");
+        }
+
+        @Test
+        @DisplayName("Просмотры запрашиваются уникальными (unique=true)")
+        void shouldRequestUniqueViews() {
+            when(eventRepository.findAll(any(Specification.class), any(Pageable.class)))
+                    .thenReturn(new PageImpl<>(List.of(event(1L, EventState.PUBLISHED))));
+            when(statClient.getStats(any(), any(), anyList(), anyBoolean())).thenReturn(List.of());
+            when(requestService.getConfirmedRequestsCount(anyCollection())).thenReturn(Map.of());
+
+            eventService.getPublicEvents(PublicParamSearch.builder().from(0).size(10).build(), servletRequest);
+
+            verify(statClient).getStats(any(), any(), eq(List.of("/events/1")), eq(true));
         }
     }
 
@@ -692,7 +753,7 @@ class EventServiceImplUnitTest {
             Event e = event(EVENT_ID, EventState.PUBLISHED);
             when(eventRepository.findById(EVENT_ID)).thenReturn(Optional.of(e));
             when(servletRequest.getRemoteAddr()).thenReturn("127.0.0.1");
-            when(statClient.getStats(any(), any(), eq(List.of("/events/" + EVENT_ID)), eq(false)))
+            when(statClient.getStats(any(), any(), eq(List.of("/events/" + EVENT_ID)), eq(true)))
                     .thenReturn(List.of(ViewStatsDto.builder().uri("/events/" + EVENT_ID).hits(42L).build()));
             when(requestService.getConfirmedRequestsCount(List.of(EVENT_ID)))
                     .thenReturn(Map.of(EVENT_ID, 8L));
