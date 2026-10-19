@@ -1,5 +1,6 @@
 package ru.practicum.ewm.dto.event.request;
 
+import jakarta.validation.constraints.PositiveOrZero;
 import jakarta.validation.constraints.Size;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -51,6 +52,7 @@ public class UpdateEventAdminRequest {
     /**
      * Лимит количества участников события.
      */
+    @PositiveOrZero
     private Integer participantLimit;
 
     /**

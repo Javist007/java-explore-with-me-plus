@@ -70,10 +70,11 @@ public interface EventService {
     /**
      * Получает список опубликованных событий с публичным доступом.
      *
-     * @param request параметры поиска и фильтрации событий
+     * @param request        параметры поиска и фильтрации событий
+     * @param servletRequest HTTP-запрос, из которого берутся uri и ip для сервиса статистики
      * @return список кратких DTO событий
      */
-    List<EventShortDto> getPublicEvents(PublicParamSearch request);
+    List<EventShortDto> getPublicEvents(PublicParamSearch request, HttpServletRequest servletRequest);
 
     /**
      * Получает полную информацию о конкретном опубликованном событии.

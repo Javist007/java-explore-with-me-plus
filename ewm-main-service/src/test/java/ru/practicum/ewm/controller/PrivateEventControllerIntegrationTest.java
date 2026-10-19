@@ -9,6 +9,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
@@ -17,6 +18,7 @@ import ru.practicum.ewm.dto.event.Location;
 import ru.practicum.ewm.dto.event.request.NewEventRequest;
 import ru.practicum.ewm.model.Category;
 import ru.practicum.ewm.model.User;
+import ru.practicum.stats.client.StatClient;
 
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -41,6 +43,12 @@ class PrivateEventControllerIntegrationTest {
 
     @Autowired
     private MockMvc mockMvc;
+
+    /**
+     * Сервис статистики в тестах не запущен: публичные эндпоинты пишут в него хиты.
+     */
+    @MockBean
+    private StatClient statClient;
 
     @Autowired
     private ObjectMapper objectMapper;
@@ -112,17 +120,33 @@ class PrivateEventControllerIntegrationTest {
     /**
      * Тестирует валидацию даты события.
      * Проверяет, что попытка создать событие с датой раньше чем через 2 часа
-     * возвращает ошибку 409 Conflict.
+     * возвращает ошибку 400 Bad Request (так требуют официальные тесты Postman).
      */
     @Test
-    @DisplayName("POST с датой раньше 2 часов -> 409 Conflict")
-    void createEventTooSoonReturns409() throws Exception {
+    @DisplayName("POST с датой раньше 2 часов -> 400 Bad Request")
+    void createEventTooSoonReturns400() throws Exception {
         String soon = LocalDateTime.now().plusMinutes(30).format(FMT);
 
         mockMvc.perform(post("/users/" + userId + "/events")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(validRequest(soon))))
-                .andExpect(status().isConflict());
+                .andExpect(status().isBadRequest());
+    }
+
+    /**
+     * Тестирует валидацию лимита участников.
+     * Проверяет, что отрицательный participantLimit отклоняется с ошибкой 400.
+     */
+    @Test
+    @DisplayName("POST с отрицательным participantLimit -> 400 Bad Request")
+    void createEventNegativeParticipantLimitReturns400() throws Exception {
+        NewEventRequest request = validRequest(LocalDateTime.now().plusDays(2).format(FMT));
+        request.setParticipantLimit(-1);
+
+        mockMvc.perform(post("/users/" + userId + "/events")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isBadRequest());
     }
 
     /**

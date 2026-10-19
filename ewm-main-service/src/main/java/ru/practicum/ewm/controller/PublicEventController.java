@@ -33,8 +33,8 @@ public class PublicEventController {
      */
     @GetMapping
     @ResponseStatus(HttpStatus.OK)
-    public List<EventShortDto> getEvents(@ModelAttribute @Valid PublicParamSearch request) {
-        return eventService.getPublicEvents(request);
+    public List<EventShortDto> getEvents(@ModelAttribute @Valid PublicParamSearch request, HttpServletRequest servletRequest) {
+        return eventService.getPublicEvents(request, servletRequest);
     }
 
     /**

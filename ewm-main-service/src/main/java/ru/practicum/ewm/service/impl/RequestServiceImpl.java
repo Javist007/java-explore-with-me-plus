@@ -23,6 +23,7 @@ import ru.practicum.ewm.service.RequestService;
 import ru.practicum.ewm.service.mapper.RequestMapper;
 
 import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.HashSet;
@@ -75,7 +76,7 @@ public class RequestServiceImpl implements RequestService {
         ParticipationRequest request = ParticipationRequest.builder()
                 .event(event)
                 .requester(requester)
-                .created(LocalDateTime.now())
+                .created(LocalDateTime.now().truncatedTo(ChronoUnit.MILLIS))
                 .status(isModerationRequired(event) ? RequestStatus.PENDING : RequestStatus.CONFIRMED)
                 .build();
         return RequestMapper.toDto(requestRepository.save(request));

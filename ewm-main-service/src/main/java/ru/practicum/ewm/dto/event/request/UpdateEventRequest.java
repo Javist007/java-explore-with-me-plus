@@ -1,6 +1,7 @@
 package ru.practicum.ewm.dto.event.request;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
+import jakarta.validation.constraints.PositiveOrZero;
 import jakarta.validation.constraints.Size;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -59,6 +60,7 @@ public class UpdateEventRequest {
     /**
      * Лимит количества участников события.
      */
+    @PositiveOrZero
     @JsonProperty("participantLimit")
     private Integer participantLimit;
 
