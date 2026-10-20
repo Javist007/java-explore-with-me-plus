@@ -2,7 +2,6 @@ package ru.practicum.ewm.repository.spec;
 
 import org.springframework.data.jpa.domain.Specification;
 import ru.practicum.ewm.dto.event.request.AdminParamSearch;
-import ru.practicum.ewm.exception.model.BadRequestException;
 import ru.practicum.ewm.exception.model.InvalidEventStateException;
 import ru.practicum.ewm.model.Event;
 import ru.practicum.ewm.model.EventState;
@@ -34,7 +33,7 @@ public class AdminEventSpecs {
      *
      * @param search параметры поиска событий
      * @return спецификация для фильтрации по состояниям
-     * @throws BadRequestException если указан недопустимый статус
+     * @throws InvalidEventStateException если указан недопустимый статус
      */
     public static Specification<Event> hasStates(AdminParamSearch search) {
         return (root, query, cb) -> {

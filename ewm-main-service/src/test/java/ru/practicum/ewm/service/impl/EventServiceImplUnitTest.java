@@ -224,20 +224,20 @@ class EventServiceImplUnitTest {
         @DisplayName("confirmedRequests берётся из requestService, а не из колонки events.confirmed_requests")
         void shouldUseConfirmedCountFromRequestService() {
             when(userRepository.existsById(USER_ID)).thenReturn(true);
-//            when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user));
+
             Event e1 = event(1L, EventState.PUBLISHED);
             Event e2 = event(2L, EventState.PENDING);
-            e1.setConfirmedRequests(99L); // намеренно «рассинхронизированное» денормализованное поле
+            e1.setConfirmedRequests(99L);
             when(eventRepository.findAllByInitiatorIdWithPagination(eq(USER_ID), eq(0), eq(10)))
                     .thenReturn(List.of(e1, e2));
             when(requestService.getConfirmedRequestsCount(anyCollection()))
-                    .thenReturn(Map.of(1L, 3L)); // у второго события ключа нет -> 0
+                    .thenReturn(Map.of(1L, 3L));
 
             List<EventShortDto> result = eventService.getEvents(USER_ID, new EventSearchRequest());
 
             assertThat(result).hasSize(2);
-            assertThat(result.get(0).getConfirmedRequests()).isEqualTo(3L);   // из RequestService, не 99
-            assertThat(result.get(1).getConfirmedRequests()).isEqualTo(0L);   // getOrDefault
+            assertThat(result.get(0).getConfirmedRequests()).isEqualTo(3L);
+            assertThat(result.get(1).getConfirmedRequests()).isEqualTo(0L);
             verify(requestService).getConfirmedRequestsCount(List.of(1L, 2L));
         }
 
@@ -305,7 +305,7 @@ class EventServiceImplUnitTest {
         @DisplayName("Событие найдено по владельцу, confirmedRequests из RequestService")
         void shouldReturnOwnEvent() {
             Event e = event(EVENT_ID, EventState.PENDING);
-            e.setConfirmedRequests(7L); // игнорируется
+            e.setConfirmedRequests(7L);
             when(eventRepository.findByInitiatorIdAndId(USER_ID, EVENT_ID)).thenReturn(Optional.of(e));
             when(requestService.getConfirmedRequestsCount(List.of(EVENT_ID))).thenReturn(Map.of(EVENT_ID, 2L));
 

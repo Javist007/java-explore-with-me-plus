@@ -338,6 +338,15 @@ public class EventServiceImpl implements EventService {
                 if (event.getState() != EventState.PENDING) {
                     throw new ConflictException("Событие можно публиковать, только если оно в состоянии ожидания публикации");
                 }
+
+                LocalDateTime dateToCheck = request.hasEventDate()
+                        ? parseDateOrNull(request.getEventDate())
+                        : event.getEventDate();
+
+                if (dateToCheck.isBefore(LocalDateTime.now().plusHours(2))) {
+                    throw new ConflictException("Дата события должна быть не ранее чем через 2 часа от текущего момента");
+                }
+
                 event.setState(EventState.PUBLISHED);
                 event.setPublishedOn(LocalDateTime.now());
             } else if (request.getStateAction() == UpdateEventAdminRequest.StateAction.REJECT_EVENT) {
@@ -400,7 +409,6 @@ public class EventServiceImpl implements EventService {
             throw new BadRequestException("Параметр size должен быть больше 0");
         }
 
-        // Запрос корректен: фиксируем его в статистике до выборки, чтобы учесть и пустой результат
         statClient.saveHit(EndpointHitDto.builder()
                 .app("ewm-main-service").uri(servletRequest.getRequestURI())
                 .ip(servletRequest.getRemoteAddr())
