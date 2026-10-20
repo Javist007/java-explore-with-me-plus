@@ -14,6 +14,7 @@ import ru.practicum.ewm.dto.event.response.EventFullDto;
 import ru.practicum.ewm.dto.event.response.EventShortDto;
 import ru.practicum.ewm.exception.model.BadRequestException;
 import ru.practicum.ewm.exception.model.ConflictException;
+import ru.practicum.ewm.exception.model.InvalidEventStateException;
 import ru.practicum.ewm.exception.model.NotFoundException;
 import ru.practicum.ewm.model.Category;
 import ru.practicum.ewm.model.Event;
@@ -102,8 +103,9 @@ public class EventServiceImpl implements EventService {
         int from = request.getFrom() == null ? 0 : Math.max(0, request.getFrom());
         int size = request.getSize();
 
-        userRepository.findById(userId)
-                .orElseThrow(() -> new NotFoundException("User не найден"));
+        if (!userRepository.existsById(userId)) {
+            throw new NotFoundException("User не найден");
+        }
 
         List<Event> events = eventRepository.findAllByInitiatorIdWithPagination(userId, from, size);
         List<Long> eventIds = events.stream().map(Event::getId).toList();
@@ -152,7 +154,7 @@ public class EventServiceImpl implements EventService {
                 .orElseThrow(() -> new NotFoundException("Event не найден"));
 
         if (event.getState() == EventState.PUBLISHED) {
-            throw new ConflictException("Редактирование опубликованного или отменённого события невозможно");
+            throw new ConflictException("Редактирование опубликованного события невозможно");
         }
 
         if (context.getRequest().hasAnnotation()) {
@@ -201,6 +203,7 @@ public class EventServiceImpl implements EventService {
             switch (context.getRequest().getStateAction()) {
                 case SEND_TO_REVIEW -> event.setState(EventState.PENDING);
                 case CANCEL_REVIEW -> event.setState(EventState.CANCELED);
+                default -> throw new InvalidEventStateException("Некорректный тип действия над статусом");
             }
         }
 
@@ -335,6 +338,11 @@ public class EventServiceImpl implements EventService {
                 if (event.getState() != EventState.PENDING) {
                     throw new ConflictException("Событие можно публиковать, только если оно в состоянии ожидания публикации");
                 }
+
+                if (event.getEventDate().isBefore(LocalDateTime.now().plusHours(1))) {
+                    throw new ConflictException("Дата события должна быть не ранее чем за час от текущего момента");
+                }
+
                 event.setState(EventState.PUBLISHED);
                 event.setPublishedOn(LocalDateTime.now());
             } else if (request.getStateAction() == UpdateEventAdminRequest.StateAction.REJECT_EVENT) {
@@ -397,7 +405,6 @@ public class EventServiceImpl implements EventService {
             throw new BadRequestException("Параметр size должен быть больше 0");
         }
 
-        // Запрос корректен: фиксируем его в статистике до выборки, чтобы учесть и пустой результат
         statClient.saveHit(EndpointHitDto.builder()
                 .app("ewm-main-service").uri(servletRequest.getRequestURI())
                 .ip(servletRequest.getRemoteAddr())

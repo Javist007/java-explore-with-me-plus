@@ -14,6 +14,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
+import ru.practicum.ewm.common.DateTimeConstants;
 import ru.practicum.ewm.dto.event.Location;
 import ru.practicum.ewm.dto.event.request.*;
 import ru.practicum.ewm.dto.event.response.EventFullDto;
@@ -223,20 +224,21 @@ class EventServiceImplUnitTest {
         @Test
         @DisplayName("confirmedRequests берётся из requestService, а не из колонки events.confirmed_requests")
         void shouldUseConfirmedCountFromRequestService() {
-            when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user));
+            when(userRepository.existsById(USER_ID)).thenReturn(true);
+
             Event e1 = event(1L, EventState.PUBLISHED);
             Event e2 = event(2L, EventState.PENDING);
-            e1.setConfirmedRequests(99L); // намеренно «рассинхронизированное» денормализованное поле
+            e1.setConfirmedRequests(99L);
             when(eventRepository.findAllByInitiatorIdWithPagination(eq(USER_ID), eq(0), eq(10)))
                     .thenReturn(List.of(e1, e2));
             when(requestService.getConfirmedRequestsCount(anyCollection()))
-                    .thenReturn(Map.of(1L, 3L)); // у второго события ключа нет -> 0
+                    .thenReturn(Map.of(1L, 3L));
 
             List<EventShortDto> result = eventService.getEvents(USER_ID, new EventSearchRequest());
 
             assertThat(result).hasSize(2);
-            assertThat(result.get(0).getConfirmedRequests()).isEqualTo(3L);   // из RequestService, не 99
-            assertThat(result.get(1).getConfirmedRequests()).isEqualTo(0L);   // getOrDefault
+            assertThat(result.get(0).getConfirmedRequests()).isEqualTo(3L);
+            assertThat(result.get(1).getConfirmedRequests()).isEqualTo(0L);
             verify(requestService).getConfirmedRequestsCount(List.of(1L, 2L));
         }
 
@@ -264,7 +266,7 @@ class EventServiceImplUnitTest {
         @Test
         @DisplayName("Отрицательный from нормализуется в 0")
         void shouldNormalizeNegativeFrom() {
-            when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user));
+            when(userRepository.existsById(USER_ID)).thenReturn(true);
             when(eventRepository.findAllByInitiatorIdWithPagination(eq(USER_ID), eq(0), eq(10)))
                     .thenReturn(List.of());
 
@@ -272,18 +274,25 @@ class EventServiceImplUnitTest {
             request.setFrom(-5);
             request.setSize(10);
 
-            assertThat(eventService.getEvents(USER_ID, request)).isEmpty();
+            List<EventShortDto> result = eventService.getEvents(USER_ID, request);
+            assertThat(result).isEmpty();
+
             verify(eventRepository).findAllByInitiatorIdWithPagination(USER_ID, 0, 10);
         }
 
         @Test
         @DisplayName("Пустой список событий: requestService вызывается с пустым списком id")
         void shouldHandleEmptyPage() {
-            when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user));
+            when(userRepository.existsById(USER_ID)).thenReturn(true);
             when(eventRepository.findAllByInitiatorIdWithPagination(USER_ID, 0, 10)).thenReturn(List.of());
             when(requestService.getConfirmedRequestsCount(anyCollection())).thenReturn(Map.of());
 
-            assertThat(eventService.getEvents(USER_ID, new EventSearchRequest())).isEmpty();
+            List<EventShortDto> result = eventService.getEvents(USER_ID, new EventSearchRequest());
+            assertThat(result).isEmpty();
+
+            verify(eventRepository).findAllByInitiatorIdWithPagination(USER_ID, 0, 10);
+
+            verify(requestService).getConfirmedRequestsCount(List.of());
         }
     }
 
@@ -297,7 +306,7 @@ class EventServiceImplUnitTest {
         @DisplayName("Событие найдено по владельцу, confirmedRequests из RequestService")
         void shouldReturnOwnEvent() {
             Event e = event(EVENT_ID, EventState.PENDING);
-            e.setConfirmedRequests(7L); // игнорируется
+            e.setConfirmedRequests(7L);
             when(eventRepository.findByInitiatorIdAndId(USER_ID, EVENT_ID)).thenReturn(Optional.of(e));
             when(requestService.getConfirmedRequestsCount(List.of(EVENT_ID))).thenReturn(Map.of(EVENT_ID, 2L));
 
@@ -413,6 +422,52 @@ class EventServiceImplUnitTest {
                     UpdateEventContext.builder().request(req).userId(USER_ID).eventId(EVENT_ID).build()))
                     .isInstanceOf(NotFoundException.class)
                     .hasMessageContaining("Category");
+        }
+
+        @Test
+        @DisplayName("PUBLISH_EVENT: Дата события через 30 минут -> ConflictException (409)")
+        void shouldFailToPublishEventWithDateTooCloseToNow() {
+            LocalDateTime now = LocalDateTime.now();
+            Event e = Event.builder()
+                    .id(EVENT_ID)
+                    .state(EventState.PENDING)
+                    .createdOn(now)
+                    .publishedOn(null)
+                    .title("Test Event")
+                    .build();
+
+            when(eventRepository.findById(EVENT_ID)).thenReturn(Optional.of(e));
+
+            UpdateEventAdminRequest req = UpdateEventAdminRequest.builder()
+                    .stateAction(UpdateEventAdminRequest.StateAction.PUBLISH_EVENT)
+                    .eventDate(LocalDateTime.now().plusMinutes(30).format(DateTimeConstants.FORMATTER))
+                    .build();
+
+            assertThatThrownBy(() -> eventService.adminUpdateEvent(EVENT_ID, req))
+                    .isInstanceOf(ConflictException.class)
+                    .hasMessageContaining("не ранее чем за час");
+
+            verify(eventRepository, never()).save(any());
+        }
+
+        @Test
+        @DisplayName("PUBLISH_EVENT: Дата события через 90 минут -> Успешная публикация")
+        void shouldSucceedToPublishEventWithValidDate() {
+            LocalDateTime now = LocalDateTime.now();
+            Event e = event(EVENT_ID, EventState.PENDING);
+            e.setCreatedOn(now);
+
+            when(eventRepository.findById(EVENT_ID)).thenReturn(Optional.of(e));
+
+            UpdateEventAdminRequest req = UpdateEventAdminRequest.builder()
+                    .stateAction(UpdateEventAdminRequest.StateAction.PUBLISH_EVENT)
+                    .eventDate(LocalDateTime.now().plusMinutes(90).format(DateTimeConstants.FORMATTER))
+                    .build();
+
+            EventFullDto result = eventService.adminUpdateEvent(EVENT_ID, req);
+
+            assertThat(result.getState()).isEqualTo("PUBLISHED");
+            verify(eventRepository).save(any());
         }
     }
 

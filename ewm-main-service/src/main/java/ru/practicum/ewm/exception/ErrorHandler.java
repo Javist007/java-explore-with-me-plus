@@ -15,6 +15,7 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import ru.practicum.ewm.exception.model.BadRequestException;
 import ru.practicum.ewm.exception.model.ConflictException;
+import ru.practicum.ewm.exception.model.InvalidEventStateException;
 import ru.practicum.ewm.exception.model.NotFoundException;
 
 import java.time.LocalDateTime;
@@ -47,7 +48,8 @@ public class ErrorHandler {
             ConstraintViolationException.class,
             MissingServletRequestParameterException.class,
             MethodArgumentTypeMismatchException.class,
-            HttpMessageNotReadableException.class
+            HttpMessageNotReadableException.class,
+            InvalidEventStateException.class
     })
     @ResponseStatus(HttpStatus.BAD_REQUEST)
     public ApiError handleBadRequest(Exception e) {
