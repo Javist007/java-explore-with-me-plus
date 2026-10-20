@@ -14,6 +14,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
+import ru.practicum.ewm.common.DateTimeConstants;
 import ru.practicum.ewm.dto.event.Location;
 import ru.practicum.ewm.dto.event.request.*;
 import ru.practicum.ewm.dto.event.response.EventFullDto;
@@ -421,6 +422,52 @@ class EventServiceImplUnitTest {
                     UpdateEventContext.builder().request(req).userId(USER_ID).eventId(EVENT_ID).build()))
                     .isInstanceOf(NotFoundException.class)
                     .hasMessageContaining("Category");
+        }
+
+        @Test
+        @DisplayName("PUBLISH_EVENT: Дата события через 30 минут -> ConflictException (409)")
+        void shouldFailToPublishEventWithDateTooCloseToNow() {
+            LocalDateTime now = LocalDateTime.now();
+            Event e = Event.builder()
+                    .id(EVENT_ID)
+                    .state(EventState.PENDING)
+                    .createdOn(now)
+                    .publishedOn(null)
+                    .title("Test Event")
+                    .build();
+
+            when(eventRepository.findById(EVENT_ID)).thenReturn(Optional.of(e));
+
+            UpdateEventAdminRequest req = UpdateEventAdminRequest.builder()
+                    .stateAction(UpdateEventAdminRequest.StateAction.PUBLISH_EVENT)
+                    .eventDate(LocalDateTime.now().plusMinutes(30).format(DateTimeConstants.FORMATTER))
+                    .build();
+
+            assertThatThrownBy(() -> eventService.adminUpdateEvent(EVENT_ID, req))
+                    .isInstanceOf(ConflictException.class)
+                    .hasMessageContaining("не ранее чем за час");
+
+            verify(eventRepository, never()).save(any());
+        }
+
+        @Test
+        @DisplayName("PUBLISH_EVENT: Дата события через 90 минут -> Успешная публикация")
+        void shouldSucceedToPublishEventWithValidDate() {
+            LocalDateTime now = LocalDateTime.now();
+            Event e = event(EVENT_ID, EventState.PENDING);
+            e.setCreatedOn(now);
+
+            when(eventRepository.findById(EVENT_ID)).thenReturn(Optional.of(e));
+
+            UpdateEventAdminRequest req = UpdateEventAdminRequest.builder()
+                    .stateAction(UpdateEventAdminRequest.StateAction.PUBLISH_EVENT)
+                    .eventDate(LocalDateTime.now().plusMinutes(90).format(DateTimeConstants.FORMATTER))
+                    .build();
+
+            EventFullDto result = eventService.adminUpdateEvent(EVENT_ID, req);
+
+            assertThat(result.getState()).isEqualTo("PUBLISHED");
+            verify(eventRepository).save(any());
         }
     }
 

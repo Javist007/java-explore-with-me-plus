@@ -339,12 +339,8 @@ public class EventServiceImpl implements EventService {
                     throw new ConflictException("Событие можно публиковать, только если оно в состоянии ожидания публикации");
                 }
 
-                LocalDateTime dateToCheck = request.hasEventDate()
-                        ? parseDateOrNull(request.getEventDate())
-                        : event.getEventDate();
-
-                if (dateToCheck.isBefore(LocalDateTime.now().plusHours(2))) {
-                    throw new ConflictException("Дата события должна быть не ранее чем через 2 часа от текущего момента");
+                if (event.getEventDate().isBefore(LocalDateTime.now().plusHours(1))) {
+                    throw new ConflictException("Дата события должна быть не ранее чем за час от текущего момента");
                 }
 
                 event.setState(EventState.PUBLISHED);
