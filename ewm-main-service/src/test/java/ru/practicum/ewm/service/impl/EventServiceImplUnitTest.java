@@ -223,7 +223,8 @@ class EventServiceImplUnitTest {
         @Test
         @DisplayName("confirmedRequests берётся из requestService, а не из колонки events.confirmed_requests")
         void shouldUseConfirmedCountFromRequestService() {
-            when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user));
+            when(userRepository.existsById(USER_ID)).thenReturn(true);
+//            when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user));
             Event e1 = event(1L, EventState.PUBLISHED);
             Event e2 = event(2L, EventState.PENDING);
             e1.setConfirmedRequests(99L); // намеренно «рассинхронизированное» денормализованное поле
@@ -264,7 +265,7 @@ class EventServiceImplUnitTest {
         @Test
         @DisplayName("Отрицательный from нормализуется в 0")
         void shouldNormalizeNegativeFrom() {
-            when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user));
+            when(userRepository.existsById(USER_ID)).thenReturn(true);
             when(eventRepository.findAllByInitiatorIdWithPagination(eq(USER_ID), eq(0), eq(10)))
                     .thenReturn(List.of());
 
@@ -272,18 +273,25 @@ class EventServiceImplUnitTest {
             request.setFrom(-5);
             request.setSize(10);
 
-            assertThat(eventService.getEvents(USER_ID, request)).isEmpty();
+            List<EventShortDto> result = eventService.getEvents(USER_ID, request);
+            assertThat(result).isEmpty();
+
             verify(eventRepository).findAllByInitiatorIdWithPagination(USER_ID, 0, 10);
         }
 
         @Test
         @DisplayName("Пустой список событий: requestService вызывается с пустым списком id")
         void shouldHandleEmptyPage() {
-            when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user));
+            when(userRepository.existsById(USER_ID)).thenReturn(true);
             when(eventRepository.findAllByInitiatorIdWithPagination(USER_ID, 0, 10)).thenReturn(List.of());
             when(requestService.getConfirmedRequestsCount(anyCollection())).thenReturn(Map.of());
 
-            assertThat(eventService.getEvents(USER_ID, new EventSearchRequest())).isEmpty();
+            List<EventShortDto> result = eventService.getEvents(USER_ID, new EventSearchRequest());
+            assertThat(result).isEmpty();
+
+            verify(eventRepository).findAllByInitiatorIdWithPagination(USER_ID, 0, 10);
+
+            verify(requestService).getConfirmedRequestsCount(List.of());
         }
     }
 

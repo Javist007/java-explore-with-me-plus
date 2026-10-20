@@ -3,6 +3,7 @@ package ru.practicum.ewm.repository.spec;
 import org.springframework.data.jpa.domain.Specification;
 import ru.practicum.ewm.dto.event.request.AdminParamSearch;
 import ru.practicum.ewm.exception.model.BadRequestException;
+import ru.practicum.ewm.exception.model.InvalidEventStateException;
 import ru.practicum.ewm.model.Event;
 import ru.practicum.ewm.model.EventState;
 
@@ -43,7 +44,7 @@ public class AdminEventSpecs {
                         try {
                             return EventState.valueOf(s.toUpperCase());
                         } catch (IllegalArgumentException e) {
-                            throw new BadRequestException(
+                            throw new InvalidEventStateException(
                                     "Недопустимый статус события: " + s);
                         }
                     })
