@@ -3,18 +3,19 @@ package ru.practicum.ewm.service.impl;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import ru.practicum.ewm.dto.comment.request.CommentSearchParams;
-import ru.practicum.ewm.dto.comment.request.EventCommentsParams;
-import ru.practicum.ewm.dto.comment.request.NewCommentParams;
-import ru.practicum.ewm.dto.comment.request.UpdateCommentParams;
-import ru.practicum.ewm.dto.comment.request.UpdateCommentStatusRequest;
-import ru.practicum.ewm.dto.comment.request.UserCommentsParams;
+import ru.practicum.ewm.dto.comment.request.*;
 import ru.practicum.ewm.dto.comment.response.CommentDto;
+import ru.practicum.ewm.exception.model.ConflictException;
+import ru.practicum.ewm.exception.model.NotFoundException;
+import ru.practicum.ewm.model.*;
 import ru.practicum.ewm.repository.CommentRepository;
 import ru.practicum.ewm.repository.EventRepository;
 import ru.practicum.ewm.repository.UserRepository;
 import ru.practicum.ewm.service.CommentService;
+import ru.practicum.ewm.service.mapper.CommentMapper;
 
+import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 
 /**
@@ -37,19 +38,56 @@ public class CommentServiceImpl implements CommentService {
     @Override
     @Transactional
     public CommentDto createComment(NewCommentParams params) {
-        throw new UnsupportedOperationException(NOT_IMPLEMENTED);
+        Event event = eventRepository.findById(params.getEventId())
+                .orElseThrow(() -> new NotFoundException("Event не найден"));
+        User user = userRepository.findById(params.getUserId())
+                .orElseThrow(() -> new NotFoundException("User не найден"));
+
+        if (event.getState() != EventState.PUBLISHED) {
+            throw new ConflictException("Комментировать можно только опубликованные события");
+        }
+
+        Comment comment = Comment.builder().text(params.getRequest().getText())
+                .event(event)
+                .author(user)
+                .status(CommentStatus.PENDING)
+                .createdOn(LocalDateTime.now().truncatedTo(ChronoUnit.MILLIS))
+                .updatedOn(null).build();
+
+        return CommentMapper.toDto(commentRepository.save(comment));
     }
 
     @Override
     @Transactional
     public CommentDto updateComment(UpdateCommentParams params) {
-        throw new UnsupportedOperationException(NOT_IMPLEMENTED);
+        User user = userRepository.findById(params.getUserId())
+                .orElseThrow(() -> new NotFoundException("User не найден"));
+        Comment comment = commentRepository.findById(params.getCommentId())
+                .orElseThrow(() -> new NotFoundException("Comment не найден"));
+
+        if (comment.getAuthor() != user) {
+            throw new NotFoundException("Менять можно только свои комментарии");
+        }
+
+        comment.setText(params.getRequest().getText());
+        comment.setUpdatedOn(LocalDateTime.now().truncatedTo(ChronoUnit.MILLIS));
+
+        return CommentMapper.toDto(commentRepository.save(comment));
     }
 
     @Override
     @Transactional
     public void deleteComment(Long userId, Long commentId) {
-        throw new UnsupportedOperationException(NOT_IMPLEMENTED);
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new NotFoundException("User не найден"));
+        Comment comment = commentRepository.findById(commentId)
+                .orElseThrow(() -> new NotFoundException("Comment не найден"));
+
+        if (comment.getAuthor() != user) {
+            throw new NotFoundException("Удалить можно только свой комментарий");
+        }
+
+        commentRepository.delete(comment);
     }
 
     // ---------- Списки (Даша) ----------
