@@ -25,7 +25,7 @@ import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
-class CommentServiceImplTest {
+class CommentServiceImplAdminTest {
 
     @Mock
     private CommentRepository commentRepository;
