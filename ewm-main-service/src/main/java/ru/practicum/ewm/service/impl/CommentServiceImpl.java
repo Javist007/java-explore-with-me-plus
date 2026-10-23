@@ -3,22 +3,20 @@ package ru.practicum.ewm.service.impl;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import ru.practicum.ewm.dto.comment.request.CommentSearchParams;
-import ru.practicum.ewm.dto.comment.request.EventCommentsParams;
-import ru.practicum.ewm.dto.comment.request.NewCommentParams;
-import ru.practicum.ewm.dto.comment.request.UpdateCommentParams;
-import ru.practicum.ewm.dto.comment.request.UpdateCommentStatusRequest;
-import ru.practicum.ewm.dto.comment.request.UserCommentsParams;
+import ru.practicum.ewm.dto.comment.request.*;
 import ru.practicum.ewm.dto.comment.response.CommentDto;
 import ru.practicum.ewm.exception.model.BadRequestException;
 import ru.practicum.ewm.exception.model.ConflictException;
 import ru.practicum.ewm.exception.model.NotFoundException;
 import ru.practicum.ewm.model.Comment;
 import ru.practicum.ewm.model.CommentStatus;
+import ru.practicum.ewm.model.Event;
+import ru.practicum.ewm.model.EventState;
 import ru.practicum.ewm.repository.CommentRepository;
 import ru.practicum.ewm.repository.EventRepository;
 import ru.practicum.ewm.repository.UserRepository;
@@ -66,13 +64,51 @@ public class CommentServiceImpl implements CommentService {
     // ---------- Списки (Даша) ----------
 
     @Override
-    public List<CommentDto> getUserComments(UserCommentsParams params) {
-        throw new UnsupportedOperationException(NOT_IMPLEMENTED);
+    public List<CommentDto> getEventComments(EventCommentsParams params) {
+        Event event = eventRepository.findById(params.getEventId())
+                .orElseThrow(() -> new NotFoundException("Событие не найдено"));
+
+        if (event.getState() != EventState.PUBLISHED) {
+            throw new NotFoundException("Комментарии доступны только для опубликованных событий");
+        }
+
+        if (params.getFrom() % params.getSize() != 0) {
+            throw new BadRequestException("Parameter 'from' must be a multiple of 'size'");
+        }
+
+        Pageable pageable = PageRequest.of(
+                params.getFrom() / params.getSize(),
+                params.getSize(),
+                Sort.by(Sort.Direction.DESC, "createdOn")
+        );
+
+        List<Comment> comments = commentRepository.findAllByEventIdAndStatus(
+                params.getEventId(),
+                CommentStatus.PUBLISHED,
+                pageable
+        );
+
+        return CommentMapper.toDtoList(comments);
     }
 
     @Override
-    public List<CommentDto> getEventComments(EventCommentsParams params) {
-        throw new UnsupportedOperationException(NOT_IMPLEMENTED);
+    public List<CommentDto> getUserComments(UserCommentsParams params) {
+        userRepository.findById(params.getUserId())
+                .orElseThrow(() -> new NotFoundException("Пользователь не найден"));
+
+        if (params.getFrom() % params.getSize() != 0) {
+            throw new BadRequestException("Parameter 'from' must be a multiple of 'size'");
+        }
+
+        Pageable pageable = PageRequest.of(
+                params.getFrom() / params.getSize(),
+                params.getSize(),
+                Sort.by(Sort.Direction.DESC, "createdOn")
+        );
+
+        List<Comment> comments = commentRepository.findAllByAuthorId(params.getUserId(), pageable);
+
+        return CommentMapper.toDtoList(comments);
     }
 
     // ---------- Admin API (Влад) ----------
