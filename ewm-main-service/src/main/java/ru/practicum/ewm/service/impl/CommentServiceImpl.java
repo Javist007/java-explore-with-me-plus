@@ -35,6 +35,14 @@ public class CommentServiceImpl implements CommentService {
 
     // ---------- Private API (Максим, кроме getUserComments) ----------
 
+    /**
+     * Создает новый комментарий к событию.
+     *
+     * @param params параметры для создания комментария
+     * @return созданный комментарий
+     * @throws NotFoundException если событие или пользователь не найдены
+     * @throws ConflictException если событие не опубликовано
+     */
     @Override
     @Transactional
     public CommentDto createComment(NewCommentParams params) {
@@ -57,6 +65,14 @@ public class CommentServiceImpl implements CommentService {
         return CommentMapper.toDto(commentRepository.save(comment));
     }
 
+    /**
+     * Обновляет текст существующего комментария.
+     * Обновить комментарий может только его автор.
+     *
+     * @param params параметры для обновления комментария
+     * @return обновленный комментарий
+     * @throws NotFoundException если комментарий не найден или принадлежит другому автору
+     */
     @Override
     @Transactional
     public CommentDto updateComment(UpdateCommentParams params) {
@@ -70,6 +86,14 @@ public class CommentServiceImpl implements CommentService {
         return CommentMapper.toDto(commentRepository.save(comment));
     }
 
+    /**
+     * Удаляет комментарий.
+     * Удалить комментарий может только его автор.
+     *
+     * @param userId идентификатор пользователя-автора
+     * @param commentId идентификатор комментария
+     * @throws NotFoundException если комментарий не найден или принадлежит другому автору
+     */
     @Override
     @Transactional
     public void deleteComment(Long userId, Long commentId) {
