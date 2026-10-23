@@ -60,17 +60,12 @@ public class CommentServiceImpl implements CommentService {
     @Override
     @Transactional
     public CommentDto updateComment(UpdateCommentParams params) {
-        User user = userRepository.findById(params.getUserId())
-                .orElseThrow(() -> new NotFoundException("User не найден"));
-        Comment comment = commentRepository.findById(params.getCommentId())
-                .orElseThrow(() -> new NotFoundException("Comment не найден"));
-
-        if (comment.getAuthor() != user) {
-            throw new NotFoundException("Менять можно только свои комментарии");
-        }
+        Comment comment = commentRepository.findByIdAndAuthorId(params.getCommentId(), params.getUserId())
+                .orElseThrow(() -> new NotFoundException("Comment не найден или он принадлежит другому автору"));
 
         comment.setText(params.getRequest().getText());
         comment.setUpdatedOn(LocalDateTime.now().truncatedTo(ChronoUnit.MILLIS));
+        comment.setStatus(CommentStatus.PENDING);
 
         return CommentMapper.toDto(commentRepository.save(comment));
     }
@@ -78,14 +73,8 @@ public class CommentServiceImpl implements CommentService {
     @Override
     @Transactional
     public void deleteComment(Long userId, Long commentId) {
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new NotFoundException("User не найден"));
-        Comment comment = commentRepository.findById(commentId)
-                .orElseThrow(() -> new NotFoundException("Comment не найден"));
-
-        if (comment.getAuthor() != user) {
-            throw new NotFoundException("Удалить можно только свой комментарий");
-        }
+        Comment comment = commentRepository.findByIdAndAuthorId(commentId, userId)
+                .orElseThrow(() -> new NotFoundException("Comment не найден или он принадлежит другому автору"));
 
         commentRepository.delete(comment);
     }
