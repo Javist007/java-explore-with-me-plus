@@ -15,11 +15,7 @@ import ru.practicum.ewm.dto.comment.request.UpdateCommentParams;
 import ru.practicum.ewm.dto.comment.response.CommentDto;
 import ru.practicum.ewm.exception.model.ConflictException;
 import ru.practicum.ewm.exception.model.NotFoundException;
-import ru.practicum.ewm.model.Comment;
-import ru.practicum.ewm.model.CommentStatus;
-import ru.practicum.ewm.model.Event;
-import ru.practicum.ewm.model.EventState;
-import ru.practicum.ewm.model.User;
+import ru.practicum.ewm.model.*;
 import ru.practicum.ewm.repository.CommentRepository;
 import ru.practicum.ewm.repository.EventRepository;
 import ru.practicum.ewm.repository.UserRepository;
@@ -31,9 +27,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.*;
 
 /**
  * Юнит-тесты реализованной части CommentServiceImpl:
