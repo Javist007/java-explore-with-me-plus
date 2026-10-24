@@ -2,21 +2,18 @@ package ru.practicum.ewm.service.impl;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import ru.practicum.ewm.common.OffsetPageRequest;
 import ru.practicum.ewm.dto.comment.request.*;
 import ru.practicum.ewm.dto.comment.response.CommentDto;
 import ru.practicum.ewm.exception.model.BadRequestException;
 import ru.practicum.ewm.exception.model.ConflictException;
 import ru.practicum.ewm.exception.model.NotFoundException;
-import ru.practicum.ewm.model.Comment;
-import ru.practicum.ewm.model.CommentStatus;
-import ru.practicum.ewm.model.Event;
-import ru.practicum.ewm.model.EventState;
+import ru.practicum.ewm.model.*;
 import ru.practicum.ewm.repository.CommentRepository;
 import ru.practicum.ewm.repository.EventRepository;
 import ru.practicum.ewm.repository.UserRepository;
@@ -24,6 +21,8 @@ import ru.practicum.ewm.repository.spec.CommentSpecifications;
 import ru.practicum.ewm.service.CommentService;
 import ru.practicum.ewm.service.mapper.CommentMapper;
 
+import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 
 /**
@@ -43,22 +42,72 @@ public class CommentServiceImpl implements CommentService {
 
     // ---------- Private API (Максим, кроме getUserComments) ----------
 
+    /**
+     * Создает новый комментарий к событию.
+     *
+     * @param params параметры для создания комментария
+     * @return созданный комментарий
+     * @throws NotFoundException если событие или пользователь не найдены
+     * @throws ConflictException если событие не опубликовано
+     */
     @Override
     @Transactional
     public CommentDto createComment(NewCommentParams params) {
-        throw new UnsupportedOperationException(NOT_IMPLEMENTED);
+        Event event = eventRepository.findById(params.getEventId())
+                .orElseThrow(() -> new NotFoundException("Event не найден"));
+        User user = userRepository.findById(params.getUserId())
+                .orElseThrow(() -> new NotFoundException("User не найден"));
+
+        if (event.getState() != EventState.PUBLISHED) {
+            throw new ConflictException("Комментировать можно только опубликованные события");
+        }
+
+        Comment comment = Comment.builder().text(params.getRequest().getText())
+                .event(event)
+                .author(user)
+                .status(CommentStatus.PENDING)
+                .createdOn(LocalDateTime.now().truncatedTo(ChronoUnit.MILLIS))
+                .updatedOn(null).build();
+
+        return CommentMapper.toDto(commentRepository.save(comment));
     }
 
+    /**
+     * Обновляет текст существующего комментария.
+     * Обновить комментарий может только его автор.
+     *
+     * @param params параметры для обновления комментария
+     * @return обновленный комментарий
+     * @throws NotFoundException если комментарий не найден или принадлежит другому автору
+     */
     @Override
     @Transactional
     public CommentDto updateComment(UpdateCommentParams params) {
-        throw new UnsupportedOperationException(NOT_IMPLEMENTED);
+        Comment comment = commentRepository.findByIdAndAuthorId(params.getCommentId(), params.getUserId())
+                .orElseThrow(() -> new NotFoundException("Comment не найден или он принадлежит другому автору"));
+
+        comment.setText(params.getRequest().getText());
+        comment.setUpdatedOn(LocalDateTime.now().truncatedTo(ChronoUnit.MILLIS));
+        comment.setStatus(CommentStatus.PENDING);
+
+        return CommentMapper.toDto(commentRepository.save(comment));
     }
 
+    /**
+     * Удаляет комментарий.
+     * Удалить комментарий может только его автор.
+     *
+     * @param userId    идентификатор пользователя-автора
+     * @param commentId идентификатор комментария
+     * @throws NotFoundException если комментарий не найден или принадлежит другому автору
+     */
     @Override
     @Transactional
     public void deleteComment(Long userId, Long commentId) {
-        throw new UnsupportedOperationException(NOT_IMPLEMENTED);
+        Comment comment = commentRepository.findByIdAndAuthorId(commentId, userId)
+                .orElseThrow(() -> new NotFoundException("Comment не найден или он принадлежит другому автору"));
+
+        commentRepository.delete(comment);
     }
 
     // ---------- Списки (Даша) ----------
@@ -72,20 +121,11 @@ public class CommentServiceImpl implements CommentService {
             throw new NotFoundException("Комментарии доступны только для опубликованных событий");
         }
 
-        if (params.getFrom() % params.getSize() != 0) {
-            throw new BadRequestException("Parameter 'from' must be a multiple of 'size'");
-        }
-
-        Pageable pageable = PageRequest.of(
-                params.getFrom() / params.getSize(),
-                params.getSize(),
-                Sort.by(Sort.Direction.DESC, "createdOn")
-        );
-
         List<Comment> comments = commentRepository.findAllByEventIdAndStatus(
                 params.getEventId(),
                 CommentStatus.PUBLISHED,
-                pageable
+                OffsetPageRequest.of(params.getFrom(), params.getSize(),
+                        Sort.by(Sort.Direction.DESC, "createdOn"))
         );
 
         return CommentMapper.toDtoList(comments);
@@ -93,20 +133,15 @@ public class CommentServiceImpl implements CommentService {
 
     @Override
     public List<CommentDto> getUserComments(UserCommentsParams params) {
-        userRepository.findById(params.getUserId())
-                .orElseThrow(() -> new NotFoundException("Пользователь не найден"));
-
-        if (params.getFrom() % params.getSize() != 0) {
-            throw new BadRequestException("Parameter 'from' must be a multiple of 'size'");
+        if (!userRepository.existsById(params.getUserId())) {
+            throw new NotFoundException("Пользователь не найден");
         }
 
-        Pageable pageable = PageRequest.of(
-                params.getFrom() / params.getSize(),
-                params.getSize(),
-                Sort.by(Sort.Direction.DESC, "createdOn")
+        List<Comment> comments = commentRepository.findAllByAuthorId(
+                params.getUserId(),
+                OffsetPageRequest.of(params.getFrom(), params.getSize(),
+                        Sort.by(Sort.Direction.DESC, "createdOn"))
         );
-
-        List<Comment> comments = commentRepository.findAllByAuthorId(params.getUserId(), pageable);
 
         return CommentMapper.toDtoList(comments);
     }
@@ -143,9 +178,11 @@ public class CommentServiceImpl implements CommentService {
             spec = spec.and(CommentSpecifications.hasRangeEnd(params.getRangeEnd()));
         }
 
-        int pageIndex = Math.max(0, params.getFrom() / params.getSize());
-        PageRequest pageable = PageRequest.of(
-                pageIndex, params.getSize(), Sort.by("createdOn").descending());
+        Pageable pageable = OffsetPageRequest.of(
+                params.getFrom(),
+                params.getSize(),
+                Sort.by("createdOn").descending()
+        );
 
         Page<Comment> page = commentRepository.findAll(spec, pageable);
 

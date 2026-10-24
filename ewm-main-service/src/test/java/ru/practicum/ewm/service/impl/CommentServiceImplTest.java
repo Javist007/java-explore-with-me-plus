@@ -1,19 +1,19 @@
 package ru.practicum.ewm.service.impl;
 
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Pageable;
-import org.springframework.data.domain.Sort;
-import ru.practicum.ewm.dto.comment.request.EventCommentsParams;
-import ru.practicum.ewm.dto.comment.request.UserCommentsParams;
+import ru.practicum.ewm.dto.comment.request.NewCommentDto;
+import ru.practicum.ewm.dto.comment.request.NewCommentParams;
+import ru.practicum.ewm.dto.comment.request.UpdateCommentDto;
+import ru.practicum.ewm.dto.comment.request.UpdateCommentParams;
 import ru.practicum.ewm.dto.comment.response.CommentDto;
-import ru.practicum.ewm.exception.model.BadRequestException;
+import ru.practicum.ewm.exception.model.ConflictException;
 import ru.practicum.ewm.exception.model.NotFoundException;
 import ru.practicum.ewm.model.*;
 import ru.practicum.ewm.repository.CommentRepository;
@@ -21,120 +21,222 @@ import ru.practicum.ewm.repository.EventRepository;
 import ru.practicum.ewm.repository.UserRepository;
 
 import java.time.LocalDateTime;
-import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.Mockito.*;
 
+/**
+ * Юнит-тесты реализованной части CommentServiceImpl:
+ * создание / изменение / удаление комментария (Private API).
+ */
 @ExtendWith(MockitoExtension.class)
 class CommentServiceImplTest {
 
     @Mock
     private CommentRepository commentRepository;
-
-    @Mock
-    private EventRepository eventRepository;
-
     @Mock
     private UserRepository userRepository;
+    @Mock
+    private EventRepository eventRepository;
 
     @InjectMocks
     private CommentServiceImpl commentService;
 
-    private Event publishedEvent;
-    private Event pendingEvent;
-    private User user;
-    private Comment publishedComment;
-    private Pageable pageable;
+    private User user(Long id) {
+        User u = new User();
+        u.setId(id);
+        u.setName("Автор " + id);
+        return u;
+    }
 
-    @BeforeEach
-    void setUp() {
-        user = User.builder().id(1L).name("Test User").email("test@test.com").build();
+    private Event event(Long id, EventState state) {
+        Event e = new Event();
+        e.setId(id);
+        e.setState(state);
+        return e;
+    }
 
-        publishedEvent = Event.builder().id(1L).state(EventState.PUBLISHED).build();
-        pendingEvent = Event.builder().id(2L).state(EventState.PENDING).build();
-
-        publishedComment = Comment.builder()
-                .id(1L)
-                .text("Great event!")
-                .event(publishedEvent)
-                .author(user)
-                .status(CommentStatus.PUBLISHED)
-                .createdOn(LocalDateTime.now())
+    private Comment comment(Long id, User author, CommentStatus status) {
+        return Comment.builder()
+                .id(id)
+                .text("Исходный текст")
+                .author(author)
+                .event(event(1L, EventState.PUBLISHED))
+                .status(status)
+                .createdOn(LocalDateTime.now().minusDays(1))
+                .updatedOn(null)
                 .build();
-
-        pageable = PageRequest.of(0, 10, Sort.by(Sort.Direction.DESC, "createdOn"));
     }
 
-    @Test
-    @DisplayName("Должен вернуть список PUBLISHED комментариев события")
-    void getEventComments_ShouldReturnPublishedComments() {
-        when(eventRepository.findById(1L)).thenReturn(Optional.of(publishedEvent));
-        when(commentRepository.findAllByEventIdAndStatus(eq(1L), eq(CommentStatus.PUBLISHED), any(Pageable.class)))
-                .thenReturn(List.of(publishedComment));
+    // ---------- createComment ----------
 
-        List<CommentDto> result = commentService.getEventComments(new EventCommentsParams(1L, 0, 10));
+    @Nested
+    @DisplayName("Создание комментария")
+    class Create {
 
-        assertThat(result).hasSize(1);
-        assertThat(result.get(0).getText()).isEqualTo("Great event!");
-        verify(commentRepository).findAllByEventIdAndStatus(eq(1L), eq(CommentStatus.PUBLISHED), any(Pageable.class));
+        private NewCommentParams params(Long userId, Long eventId, String text) {
+            return new NewCommentParams(userId, eventId, NewCommentDto.builder().text(text).build());
+        }
+
+        @Test
+        @DisplayName("201-сценарий: сохраняется PENDING с createdOn и пустым updatedOn")
+        void shouldCreatePendingComment() {
+            when(eventRepository.findById(1L)).thenReturn(Optional.of(event(1L, EventState.PUBLISHED)));
+            when(userRepository.findById(7L)).thenReturn(Optional.of(user(7L)));
+            when(commentRepository.save(any(Comment.class))).thenAnswer(inv -> {
+                Comment c = inv.getArgument(0);
+                c.setId(100L);
+                return c;
+            });
+
+            CommentDto result = commentService.createComment(params(7L, 1L, "Отличный концерт!"));
+
+            ArgumentCaptor<Comment> captor = ArgumentCaptor.forClass(Comment.class);
+            verify(commentRepository).save(captor.capture());
+            Comment saved = captor.getValue();
+
+            assertThat(saved.getStatus()).isEqualTo(CommentStatus.PENDING);
+            assertThat(saved.getText()).isEqualTo("Отличный концерт!");
+            assertThat(saved.getAuthor().getId()).isEqualTo(7L);
+            assertThat(saved.getEvent().getId()).isEqualTo(1L);
+            assertThat(saved.getCreatedOn()).isNotNull();
+            assertThat(saved.getUpdatedOn()).isNull();
+
+            assertThat(result.getId()).isEqualTo(100L);
+            assertThat(result.getStatus()).isEqualTo(CommentStatus.PENDING);
+            assertThat(result.getEventId()).isEqualTo(1L);
+            assertThat(result.getAuthor().getId()).isEqualTo(7L);
+        }
+
+        @Test
+        @DisplayName("Событие не найдено -> 404, ничего не сохраняется")
+        void shouldThrowNotFoundWhenEventMissing() {
+            when(eventRepository.findById(999L)).thenReturn(Optional.empty());
+
+            assertThatThrownBy(() -> commentService.createComment(params(7L, 999L, "текст")))
+                    .isInstanceOf(NotFoundException.class);
+            verify(commentRepository, never()).save(any());
+        }
+
+        @Test
+        @DisplayName("Пользователь не найден -> 404")
+        void shouldThrowNotFoundWhenUserMissing() {
+            when(eventRepository.findById(1L)).thenReturn(Optional.of(event(1L, EventState.PUBLISHED)));
+            when(userRepository.findById(404L)).thenReturn(Optional.empty());
+
+            assertThatThrownBy(() -> commentService.createComment(params(404L, 1L, "текст")))
+                    .isInstanceOf(NotFoundException.class);
+            verify(commentRepository, never()).save(any());
+        }
+
+        @Test
+        @DisplayName("Событие не опубликовано (PENDING) -> 409")
+        void shouldThrowConflictWhenEventNotPublished() {
+            when(eventRepository.findById(1L)).thenReturn(Optional.of(event(1L, EventState.PENDING)));
+            when(userRepository.findById(7L)).thenReturn(Optional.of(user(7L)));
+
+            assertThatThrownBy(() -> commentService.createComment(params(7L, 1L, "текст")))
+                    .isInstanceOf(ConflictException.class);
+            verify(commentRepository, never()).save(any());
+        }
+
+        @Test
+        @DisplayName("Событие отменено (CANCELED) -> 409")
+        void shouldThrowConflictWhenEventCanceled() {
+            when(eventRepository.findById(1L)).thenReturn(Optional.of(event(1L, EventState.CANCELED)));
+            when(userRepository.findById(7L)).thenReturn(Optional.of(user(7L)));
+
+            assertThatThrownBy(() -> commentService.createComment(params(7L, 1L, "текст")))
+                    .isInstanceOf(ConflictException.class);
+        }
     }
 
-    @Test
-    @DisplayName("Должен выбросить 404, если событие не опубликовано")
-    void getEventComments_ShouldThrowNotFound_WhenEventNotPublished() {
-        when(eventRepository.findById(2L)).thenReturn(Optional.of(pendingEvent));
+    // ---------- updateComment ----------
 
-        assertThatThrownBy(() -> commentService.getEventComments(new EventCommentsParams(2L, 0, 10)))
-                .isInstanceOf(NotFoundException.class)
-                .hasMessageContaining("Комментарии доступны только для опубликованных событий");
+    @Nested
+    @DisplayName("Изменение своего комментария")
+    class Update {
+
+        private UpdateCommentParams params(Long userId, Long commentId, String text) {
+            return new UpdateCommentParams(userId, commentId, UpdateCommentDto.builder().text(text).build());
+        }
+
+        @Test
+        @DisplayName("Текст меняется, updatedOn ставится, статус возвращается на PENDING")
+        void shouldUpdateTextAndResetStatusToPending() {
+            Comment c = comment(10L, user(7L), CommentStatus.PUBLISHED);
+            when(commentRepository.findByIdAndAuthorId(10L, 7L)).thenReturn(Optional.of(c));
+
+            when(commentRepository.save(any(Comment.class))).thenAnswer(inv -> inv.getArgument(0));
+
+
+            CommentDto result = commentService.updateComment(params(7L, 10L, "Новый текст"));
+
+            assertThat(c.getText()).isEqualTo("Новый текст");
+            assertThat(c.getStatus()).isEqualTo(CommentStatus.PENDING);
+            assertThat(c.getUpdatedOn()).isNotNull();
+            assertThat(result.getText()).isEqualTo("Новый текст");
+            assertThat(result.getStatus()).isEqualTo(CommentStatus.PENDING);
+        }
+
+        @Test
+        @DisplayName("Чужой комментарий -> 404 (поиск сразу по автору)")
+        void shouldReturnNotFoundForForeignComment() {
+            when(commentRepository.findByIdAndAuthorId(10L, 8L)).thenReturn(Optional.empty());
+
+            assertThatThrownBy(() -> commentService.updateComment(params(8L, 10L, "хакну")))
+                    .isInstanceOf(NotFoundException.class);
+        }
+
+        @Test
+        @DisplayName("Комментарий не найден -> 404")
+        void shouldReturnNotFoundWhenCommentMissing() {
+            when(commentRepository.findByIdAndAuthorId(404L, 7L)).thenReturn(Optional.empty());
+
+            assertThatThrownBy(() -> commentService.updateComment(params(7L, 404L, "текст")))
+                    .isInstanceOf(NotFoundException.class);
+        }
     }
 
-    @Test
-    @DisplayName("Должен выбросить 400, если from не кратно size")
-    void getEventComments_ShouldThrowBadRequest_WhenFromNotMultipleOfSize() {
-        when(eventRepository.findById(1L)).thenReturn(Optional.of(publishedEvent));
+    // ---------- deleteComment ----------
 
-        assertThatThrownBy(() -> commentService.getEventComments(new EventCommentsParams(1L, 5, 10)))
-                .isInstanceOf(BadRequestException.class)
-                .hasMessageContaining("Parameter 'from' must be a multiple of 'size'");
-    }
+    @Nested
+    @DisplayName("Удаление своего комментария")
+    class Delete {
 
-    @Test
-    @DisplayName("Должен вернуть список всех комментариев пользователя")
-    void getUserComments_ShouldReturnAllUserComments() {
-        when(userRepository.findById(1L)).thenReturn(Optional.of(user));
-        when(commentRepository.findAllByAuthorId(eq(1L), any(Pageable.class)))
-                .thenReturn(List.of(publishedComment));
+        @Test
+        @DisplayName("Свой комментарий удаляется")
+        void shouldDeleteOwnComment() {
+            Comment c = comment(10L, user(7L), CommentStatus.PUBLISHED);
+            when(commentRepository.findByIdAndAuthorId(10L, 7L)).thenReturn(Optional.of(c));
 
-        List<CommentDto> result = commentService.getUserComments(new UserCommentsParams(1L, 0, 10));
+            commentService.deleteComment(7L, 10L);
 
-        assertThat(result).hasSize(1);
-        verify(commentRepository).findAllByAuthorId(eq(1L), any(Pageable.class));
-    }
+            verify(commentRepository).delete(c);
+        }
 
-    @Test
-    @DisplayName("Должен выбросить 404, если пользователь не найден")
-    void getUserComments_ShouldThrowNotFound_WhenUserNotFound() {
-        when(userRepository.findById(99L)).thenReturn(Optional.empty());
+        @Test
+        @DisplayName("Чужой комментарий -> 404, delete не вызывается")
+        void shouldNotDeleteForeignComment() {
+            when(commentRepository.findByIdAndAuthorId(10L, 8L)).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> commentService.getUserComments(new UserCommentsParams(99L, 0, 10)))
-                .isInstanceOf(NotFoundException.class)
-                .hasMessageContaining("Пользователь не найден");
-    }
+            assertThatThrownBy(() -> commentService.deleteComment(8L, 10L))
+                    .isInstanceOf(NotFoundException.class);
+            verify(commentRepository, never()).delete(any(Comment.class));
+        }
 
-    @Test
-    @DisplayName("Должен выбросить 400, если from не кратно size в getUserComments")
-    void getUserComments_ShouldThrowBadRequest_WhenFromNotMultipleOfSize() {
-        when(userRepository.findById(1L)).thenReturn(Optional.of(user));
+        @Test
+        @DisplayName("Несуществующий комментарий -> 404")
+        void shouldReturnNotFoundWhenMissing() {
+            when(commentRepository.findByIdAndAuthorId(anyLong(), anyLong())).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> commentService.getUserComments(new UserCommentsParams(1L, 3, 10)))
-                .isInstanceOf(BadRequestException.class)
-                .hasMessageContaining("Parameter 'from' must be a multiple of 'size'");
+            assertThatThrownBy(() -> commentService.deleteComment(7L, 404L))
+                    .isInstanceOf(NotFoundException.class);
+            verify(commentRepository, never()).delete(any(Comment.class));
+        }
     }
 }
